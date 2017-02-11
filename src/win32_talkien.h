@@ -4,6 +4,67 @@
 #define INITGUID
 #include "windows.h"
 
+#define WGL_EXTLIST "wgl_extlist.h"
+#define GL_EXTLIST "gl_extlist.h"
+
+#define WGL_DRAW_TO_WINDOW_ARB      0x2001
+#define WGL_ACCELERATION_ARB        0x2003
+#define WGL_SUPPORT_OPENGL_ARB      0x2010
+#define WGL_DOUBLE_BUFFER_ARB       0x2011
+#define WGL_PIXEL_TYPE_ARB          0x2013
+#define WGL_COLOR_BITS_ARB          0x2014
+#define WGL_DEPTH_BITS_ARB          0x2022
+#define WGL_STENCIL_BITS_ARB        0x2023
+#define WGL_TYPE_RGBA_ARB           0x202B
+#define WGL_FULL_ACCELERATION_ARB   0x2027
+
+#define WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB  0x20A9
+
+#define WGL_CONTEXT_MAJOR_VERSION_ARB   0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB   0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB     0x2093
+#define WGL_CONTEXT_FLAGS_ARB           0x2094
+#define WGL_CONTEXT_PROFILE_MASK_ARB    0x9126
+
+#define WGL_CONTEXT_DEBUG_BIT_ARB                   0x0001
+#define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB      0x0002
+#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB            0x00000001
+#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB   0x00000002
+
+#define GL_GET_FUNC(func) wglGetProcAddress(func)
+
+#define WGL_DECLARE(type, name, ...)    typedef type (__stdcall *PFNWGL##name##PROC)(__VA_ARGS__)
+#define WGLARB_DECLARE(type, name, ...) WGL_DECLARE(type, name##ARB, __VA_ARGS__)
+#define WGLEXT_DECLARE(type, name, ...) WGL_DECLARE(type, name##EXT, __VA_ARGS__)
+
+WGLARB_DECLARE(HGLRC,  CREATECONTEXTATTRIBS, HDC, HGLRC, int *);
+WGLARB_DECLARE(int,    CHOOSEPIXELFORMAT,    HDC, int *, f32 *, uint, int *, uint *);
+WGLEXT_DECLARE(int,    SWAPINTERVAL,         int);
+
+#define WGLARB(a, b) WGLE(a##ARB, b##ARB)
+#define WGLEXT(a, b) WGLE(a##EXT, b##EXT)
+
+#define WGLE(a, b) static PFNWGL##a##PROC wgl##b
+#include WGL_EXTLIST
+#undef WGLE
+
+inline void wgl_init_extensions()
+{
+    #define WGLE(a, b) wgl##b = (PFNWGL##a##PROC)GL_GET_FUNC("wgl" #b);
+    #include WGL_EXTLIST
+    #undef WGLE
+}
+
+#include "opengl.h"
+
+struct Win32Window
+{
+    HWND wnd;
+    HDC dc;
+    HGLRC rc;
+    b32 initialized;
+};
+
 inline f32 win32_get_time()
 {
     static i64 start = 0;
