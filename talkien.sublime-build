@@ -1,0 +1,18 @@
+{
+    "shell_cmd": "w:/talkien/build.bat",
+    "file_regex": "^ *([A-z]:.*)[(]([0-9]+)[)]",
+
+    "variants":
+    [
+        {
+            "name": "Run",
+            "shell_cmd": "devenv /runexit w:/talkien/win32_talkien.sln"
+        },
+
+        {
+            "name": "Compile",
+            "shell_cmd": "w:/talkien/build.bat",
+            "file_regex": "^ *([A-z]:.*)[(]([0-9]+)[)]"
+        }
+    ]
+}
