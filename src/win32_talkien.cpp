@@ -4,6 +4,8 @@
 #include "platform.h"
 #include "win32_talkien.h"
 
+#include "talkien.cpp"
+
 static Win32Window global_window;
 static b32 global_running;
 
@@ -187,8 +189,6 @@ static void win32_process_messages()
     }
 }
 
-
-
 i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd_show)
 {
     global_window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
@@ -212,6 +212,7 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
                 dt_carried -= TIMESTEP_SEC;
 
                 win32_process_messages();
+                update_and_render(TIMESTEP_SEC);
 
                 SwapBuffers(global_window.dc);
             }
