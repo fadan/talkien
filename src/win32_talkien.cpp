@@ -30,48 +30,6 @@ static HWND win32_open_window_(char *wndclass_name, char *title, i32 width, i32 
     return result;
 }
 
-static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
-{
-    LRESULT result = 0;
-    switch (message)
-    {
-        case WM_CLOSE:
-        case WM_DESTROY:
-        {
-            global_running = false;
-        } break;
-
-        default:
-        {
-            result = DefWindowProcA(window, message, wparam, lparam);
-        } break;
-    }
-    return result;
-}
-
-static void win32_process_messages()
-{
-    MSG msg;
-    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
-    {
-        UINT message = msg.message;
-        switch (message)
-        {
-            case WM_QUIT:
-            {
-                global_running = false;
-            } break;
-
-            default:
-            {
-                TranslateMessage(&msg);
-                DispatchMessageA(&msg);
-            } break;
-        }
-    }
-}
-
-
 static b32 win32_init_opengl_extensions()
 {
     b32 result = false;
@@ -175,6 +133,11 @@ static Win32Window win32_open_window_init_with_opengl_(char *wndclass_name, char
 
         win32_init_opengl_extensions();
 
+        if (wglSwapIntervalEXT)
+        {
+            wglSwapIntervalEXT(1);
+        }
+
         result.dc = GetDC(result.wnd);
         result.rc = win32_opengl_create_context(result.dc, pixel_format_attribs, context_attribs);
         result.initialized = wglMakeCurrent(result.dc, result.rc);
@@ -183,31 +146,77 @@ static Win32Window win32_open_window_init_with_opengl_(char *wndclass_name, char
     return result;
 }
 
+static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    LRESULT result = 0;
+    switch (message)
+    {
+        case WM_CLOSE:
+        case WM_DESTROY:
+        {
+            global_running = false;
+        } break;
+
+        default:
+        {
+            result = DefWindowProcA(window, message, wparam, lparam);
+        } break;
+    }
+    return result;
+}
+
+static void win32_process_messages()
+{
+    MSG msg;
+    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
+    {
+        UINT message = msg.message;
+        switch (message)
+        {
+            case WM_QUIT:
+            {
+                global_running = false;
+            } break;
+
+            default:
+            {
+                TranslateMessage(&msg);
+                DispatchMessageA(&msg);
+            } break;
+        }
+    }
+}
+
+
+
 i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd_show)
 {
     global_window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
 
-    f32 dt_carried = 0;
-    f32 t0 = 0;
-
-    global_running = true;
-    while (global_running)
+    if (global_window.initialized)
     {
-        f32 t = win32_get_time();
-        f32 dt = t - t0;
+        f32 dt_carried = 0;
+        f32 t0 = 0;
 
-        t0 = t;
-        dt_carried += dt;
-
-        while (dt_carried > TIMESTEP_SEC)
+        global_running = true;
+        while (global_running)
         {
-            dt_carried -= TIMESTEP_SEC;
+            f32 t = win32_get_time();
+            f32 dt = t - t0;
 
-            win32_process_messages();
+            t0 = t;
+            dt_carried += dt;
 
-            SwapBuffers(global_window.dc);
+            while (dt_carried > TIMESTEP_SEC)
+            {
+                dt_carried -= TIMESTEP_SEC;
+
+                win32_process_messages();
+
+                SwapBuffers(global_window.dc);
+            }
         }
     }
-
+    
     return 0;
 }

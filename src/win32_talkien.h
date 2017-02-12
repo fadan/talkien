@@ -1,11 +1,7 @@
-
 // TODO(dan): replace windows.h
 #define WIN32_LEAN_AND_MEAN
 #define INITGUID
 #include "windows.h"
-
-#define WGL_EXTLIST "wgl_extlist.h"
-#define GL_EXTLIST "gl_extlist.h"
 
 #define WGL_DRAW_TO_WINDOW_ARB      0x2001
 #define WGL_ACCELERATION_ARB        0x2003
@@ -33,25 +29,26 @@
 
 #define GL_GET_FUNC(func) wglGetProcAddress(func)
 
-#define WGL_DECLARE(type, name, ...)    typedef type (__stdcall *PFNWGL##name##PROC)(__VA_ARGS__)
-#define WGLARB_DECLARE(type, name, ...) WGL_DECLARE(type, name##ARB, __VA_ARGS__)
-#define WGLEXT_DECLARE(type, name, ...) WGL_DECLARE(type, name##EXT, __VA_ARGS__)
+typedef HGLRC (__stdcall * PFNWGLCREATECONTEXTATTRIBSARBPROC)   (HDC, HGLRC, int *);
+typedef int   (__stdcall * PFNWGLCHOOSEPIXELFORMATARBPROC)      (HDC, int *, float *, uint , int *, uint *);
+typedef int   (__stdcall * PFNWGLSWAPINTERVALEXTPROC)           (int);
 
-WGLARB_DECLARE(HGLRC,  CREATECONTEXTATTRIBS, HDC, HGLRC, int *);
-WGLARB_DECLARE(int,    CHOOSEPIXELFORMAT,    HDC, int *, f32 *, uint, int *, uint *);
-WGLEXT_DECLARE(int,    SWAPINTERVAL,         int);
+#define WGL_EXTENSIONS_LIST \
+    WGLARB(CHOOSEPIXELFORMAT,    ChoosePixelFormat) \
+    WGLARB(CREATECONTEXTATTRIBS, CreateContextAttribs) \
+    WGLEXT(SWAPINTERVAL,         SwapInterval) 
 
 #define WGLARB(a, b) WGLE(a##ARB, b##ARB)
 #define WGLEXT(a, b) WGLE(a##EXT, b##EXT)
 
-#define WGLE(a, b) static PFNWGL##a##PROC wgl##b
-#include WGL_EXTLIST
+#define WGLE(a, b) static PFNWGL##a##PROC wgl##b;
+WGL_EXTENSIONS_LIST
 #undef WGLE
 
 inline void wgl_init_extensions()
 {
     #define WGLE(a, b) wgl##b = (PFNWGL##a##PROC)GL_GET_FUNC("wgl" #b);
-    #include WGL_EXTLIST
+    WGL_EXTENSIONS_LIST
     #undef WGLE
 }
 
