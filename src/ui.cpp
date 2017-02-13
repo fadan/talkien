@@ -116,16 +116,26 @@ static void init_ui()
     glBindTexture(GL_TEXTURE_2D, font_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     global_imgui->Fonts->TexID = (void *)(intptr)font_texture;
 }
 
-static void begin_ui(i32 window_width, i32 window_height, f32 dt)
+static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
 {
     global_imgui->DisplaySize = ImVec2((f32)window_width, (f32)window_height);
-    global_imgui->DeltaTime = dt;
+    global_imgui->DeltaTime = input->dt;
+
+    // TODO(dan): scissors seems to be wrong
+    global_imgui->MousePos = ImVec2(input->mouse_x, input->mouse_y + 40);
+    global_imgui->MouseDown[0] = input->mouse_buttons[mouse_button_left] != 0;
+    global_imgui->MouseDown[1] = input->mouse_buttons[mouse_button_right] != 0;
+    global_imgui->MouseDown[2] = input->mouse_buttons[mouse_button_middle] != 0;
+    global_imgui->MouseWheel = input->mouse_z;
+
+    global_imgui->KeyCtrl = input->ctrl_down != 0;
+    global_imgui->KeyShift = input->shift_down != 0;
+    global_imgui->KeyAlt = input->alt_down != 0;
 
     ImGui::NewFrame();
 }
@@ -137,6 +147,7 @@ static void end_ui()
     i32 fb_width = (i32)(global_imgui->DisplaySize.x);
     i32 fb_height = (i32)(global_imgui->DisplaySize.y);
 
+    glDisable(GL_SCISSOR_TEST);
     glViewport(0, 0, fb_width, fb_height);
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -149,6 +160,7 @@ static void end_ui()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
+    glEnable(GL_SCISSOR_TEST);
     glActiveTextureARB(GL_TEXTURE0);
 
     // NOTE(dan): ortho proj matrix
@@ -167,19 +179,20 @@ static void end_ui()
     glUniformMatrix4fvARB(uniforms[uniform_proj_mat], 1, GL_FALSE, &proj_mat[0][0]);
     glBindVertexArray(vao);
 
-    for (i32 cmd_index = 0; cmd_index < data->CmdListsCount; ++cmd_index)
+    for (i32 list_index = 0; list_index < data->CmdListsCount; ++list_index)
     {
-        ImDrawList *list = data->CmdLists[cmd_index];
+        ImDrawList *list = data->CmdLists[list_index];
         ImDrawIdx *index_buff_offset = 0;
 
         glBindBufferARB(GL_ARRAY_BUFFER, vbo);
-        glBufferDataARB(GL_ARRAY_BUFFER, (GLsizeiptr)list->VtxBuffer.size() * sizeof(ImDrawVert), (GLvoid *)&list->VtxBuffer.front(), GL_STREAM_DRAW);
+        glBufferDataARB(GL_ARRAY_BUFFER, (GLsizeiptr)list->VtxBuffer.Size * sizeof(ImDrawVert), (GLvoid *)list->VtxBuffer.Data, GL_STREAM_DRAW);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, elements);
-        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)list->IdxBuffer.size() * sizeof(ImDrawIdx), (GLvoid *)&list->IdxBuffer.front(), GL_STREAM_DRAW);
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)list->IdxBuffer.Size * sizeof(ImDrawIdx), (GLvoid *)list->IdxBuffer.Data, GL_STREAM_DRAW);
 
-        for (ImDrawCmd *cmd = list->CmdBuffer.begin(); cmd != list->CmdBuffer.end(); ++cmd)
+        for (i32 cmd_index = 0; cmd_index < list->CmdBuffer.Size; ++cmd_index)
         {
+            ImDrawCmd *cmd = &list->CmdBuffer[cmd_index];
             if (cmd->UserCallback)
             {
                 cmd->UserCallback(list, cmd);
@@ -187,9 +200,9 @@ static void end_ui()
             else
             {
                 glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr)cmd->TextureId);
+                glScissor((int)cmd->ClipRect.x, (int)(fb_height - cmd->ClipRect.w), (int)(cmd->ClipRect.z - cmd->ClipRect.x), (int)(cmd->ClipRect.w - cmd->ClipRect.y));
                 glDrawElements(GL_TRIANGLES, (GLsizei)cmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, index_buff_offset);
             }
-
             index_buff_offset += cmd->ElemCount;
         }
     }

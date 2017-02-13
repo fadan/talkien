@@ -1,6 +1,6 @@
 #include "ui.cpp"
 
-static void update_and_render(f32 dt)
+static void update_and_render(PlatformInput *input)
 {
     static b32 initialized = false;
     if (!initialized)
@@ -9,7 +9,7 @@ static void update_and_render(f32 dt)
         initialized = true;
     }
 
-    begin_ui(1280, 720, dt);
+    begin_ui(input, 1280, 720);
     {
         static bool show_test_window = true;
         ImGui::ShowTestWindow(&show_test_window);

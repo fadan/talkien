@@ -189,6 +189,40 @@ static void win32_process_messages()
     }
 }
 
+static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, f32 dt)
+{
+    win32_process_messages();
+    
+    *input = {0};
+
+    input->dt = dt;
+    input->shift_down = (GetKeyState(VK_SHIFT) & (1 << 15));
+    input->alt_down = (GetKeyState(VK_MENU) & (1 << 15));
+    input->ctrl_down = (GetKeyState(VK_CONTROL) & (1 << 15));
+
+    POINT mouse_p;
+    GetCursorPos(&mouse_p);
+    ScreenToClient(global_window.wnd, &mouse_p);
+
+    input->mouse_x = (f32)mouse_p.x;
+    input->mouse_y = (f32)mouse_p.y;
+    input->mouse_z = 0;
+
+    DWORD mouse_button_id[mouse_button_count] =
+    {
+        VK_LBUTTON,
+        VK_MBUTTON,
+        VK_RBUTTON,
+        VK_XBUTTON1,
+        VK_XBUTTON2,
+    };
+
+    for (u32 mouse_button_index = 0; mouse_button_index < mouse_button_count; ++mouse_button_index)
+    {
+        input->mouse_buttons[mouse_button_index] = GetKeyState(mouse_button_id[mouse_button_index]) & (1 << 15);
+    }
+}
+
 i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd_show)
 {
     global_window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
@@ -197,6 +231,10 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
     {
         f32 dt_carried = 0;
         f32 t0 = 0;
+
+        PlatformInput inputs[2] = {0};
+        PlatformInput *input = &inputs[0];
+        PlatformInput *prev_input = &inputs[1];
 
         global_running = true;
         while (global_running)
@@ -211,8 +249,12 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
             {
                 dt_carried -= TIMESTEP_SEC;
 
-                win32_process_messages();
-                update_and_render(TIMESTEP_SEC);
+                win32_update_input(input, prev_input, TIMESTEP_SEC);
+                update_and_render(input);
+
+                PlatformInput *temp_input = input;
+                input = prev_input;
+                prev_input = temp_input;
 
                 SwapBuffers(global_window.dc);
             }

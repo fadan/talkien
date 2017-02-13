@@ -110,3 +110,28 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #define MB  (1024LL * KB)
 #define GB  (1024LL * MB)
 #define TB  (1024LL * GB)
+
+enum
+{
+    mouse_button_left,
+    mouse_button_middle,
+    mouse_button_right,
+    mouse_button_extended0,
+    mouse_button_extended1,
+
+    mouse_button_count,
+};
+
+struct PlatformInput
+{
+    f32 dt;
+    f32 mouse_x;
+    f32 mouse_y;
+    f32 mouse_z;
+
+    b32 shift_down;
+    b32 ctrl_down;
+    b32 alt_down;
+
+    b32 mouse_buttons[mouse_button_count];
+};

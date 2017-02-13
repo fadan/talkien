@@ -29,6 +29,7 @@
 #define GL_ARRAY_BUFFER                   0x8892
 #define GL_STREAM_DRAW                    0x88E0
 #define GL_ELEMENT_ARRAY_BUFFER           0x8893
+#define GL_SCISSOR_TEST                   0x0C11
 
 #define GL_TRIANGLES                      0x0004
 
@@ -97,6 +98,7 @@ gdi_import void __stdcall glEnable (GLenum cap);
 gdi_import void __stdcall glBlendFunc (GLenum sfactor, GLenum dfactor);
 gdi_import void __stdcall glDisable (GLenum cap);
 gdi_import void __stdcall glDrawElements (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
+gdi_import void __stdcall glScissor (GLint x, GLint y, GLsizei width, GLsizei height);
 
 #define GL_EXTENSIONS_LIST \
     GLARB(GENBUFFERS,               GenBuffers) \
