@@ -126,8 +126,7 @@ static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
     global_imgui->DisplaySize = ImVec2((f32)window_width, (f32)window_height);
     global_imgui->DeltaTime = input->dt;
 
-    // TODO(dan): scissors seems to be wrong
-    global_imgui->MousePos = ImVec2(input->mouse_x, input->mouse_y + 40);
+    global_imgui->MousePos = ImVec2(input->mouse_x, input->mouse_y);
     global_imgui->MouseDown[0] = input->mouse_buttons[mouse_button_left] != 0;
     global_imgui->MouseDown[1] = input->mouse_buttons[mouse_button_right] != 0;
     global_imgui->MouseDown[2] = input->mouse_buttons[mouse_button_middle] != 0;
@@ -142,43 +141,41 @@ static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
 
 static void end_ui()
 {
-    ImVec4 clear_color = ImColor(114, 144, 154);
+    ImVec2 fb_size = global_imgui->DisplaySize;
+    ImVec2 fb_scale = global_imgui->DisplayFramebufferScale;
+    i32 fb_width = (i32)(fb_size.x * fb_scale.x);
+    i32 fb_height = (i32)(fb_size.y * fb_scale.y);
 
-    i32 fb_width = (i32)(global_imgui->DisplaySize.x);
-    i32 fb_height = (i32)(global_imgui->DisplaySize.y);
-
-    glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, fb_width, fb_height);
-    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
+    assert(fb_width);
+    assert(fb_height);
 
     ImGui::Render();
-    ImDrawData *data = ImGui::GetDrawData();
+    ImDrawData *data = ImGui::GetDrawData();    
 
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
-    glEnable(GL_SCISSOR_TEST);
     glActiveTextureARB(GL_TEXTURE0);
-
-    // NOTE(dan): ortho proj matrix
+  
     glViewport(0, 0, (GLsizei)fb_width, (GLsizei)fb_height);
-    
+    f32 a = 2.0f /  global_imgui->DisplaySize.x;
+    f32 b = 2.0f / -global_imgui->DisplaySize.y;
     f32 proj_mat[4][4] =
     {
-        { 2.0f / global_imgui->DisplaySize.x, 0.0f,                      0.0f, 0.0f},
-        { 0.0f,                     2.0f / -global_imgui->DisplaySize.y, 0.0f, 0.0f},
-        { 0.0f,                     0.0f,                               -1.0f, 0.0f},
-        {-1.0f,                     1.0f,                                0.0f, 1.0f},
+        { a,     0.0f,  0.0f, 0.0f},
+        { 0.0f,  b,     0.0f, 0.0f},
+        { 0.0f,  0.0f, -1.0f, 0.0f},
+        {-1.0f,  1.0f,  0.0f, 1.0f},
     };
-
     glUseProgramObjectARB(ui_program);
     glUniform1iARB(uniforms[uniform_tex], 0);
     glUniformMatrix4fvARB(uniforms[uniform_proj_mat], 1, GL_FALSE, &proj_mat[0][0]);
     glBindVertexArray(vao);
 
+    glEnable(GL_SCISSOR_TEST);
+    data->ScaleClipRects(fb_scale);
     for (i32 list_index = 0; list_index < data->CmdListsCount; ++list_index)
     {
         ImDrawList *list = data->CmdLists[list_index];
@@ -206,4 +203,5 @@ static void end_ui()
             index_buff_offset += cmd->ElemCount;
         }
     }
+    glDisable(GL_SCISSOR_TEST);
 }

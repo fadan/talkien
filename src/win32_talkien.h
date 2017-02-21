@@ -59,6 +59,8 @@ struct Win32Window
     HWND wnd;
     HDC dc;
     HGLRC rc;
+    i32 width;
+    i32 height;
     b32 initialized;
 };
 

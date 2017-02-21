@@ -1,4 +1,4 @@
-#define TIMESTEP_HZ     60
+#define TIMESTEP_HZ     30
 #define TIMESTEP_SEC    (1.0f / TIMESTEP_HZ)
 
 #include "platform.h"
@@ -127,7 +127,7 @@ static Win32Window win32_open_window_init_with_opengl_(char *wndclass_name, char
         i32 context_attribs[] =
         {
             WGL_CONTEXT_MAJOR_VERSION_ARB,  3,
-            WGL_CONTEXT_MINOR_VERSION_ARB,  1,
+            WGL_CONTEXT_MINOR_VERSION_ARB,  3,
             WGL_CONTEXT_FLAGS_ARB,          CONTEXT_FLAGS,
             WGL_CONTEXT_PROFILE_MASK_ARB,   WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
             0,
@@ -142,6 +142,8 @@ static Win32Window win32_open_window_init_with_opengl_(char *wndclass_name, char
 
         result.dc = GetDC(result.wnd);
         result.rc = win32_opengl_create_context(result.dc, pixel_format_attribs, context_attribs);
+        result.width = width;
+        result.height = height;
         result.initialized = wglMakeCurrent(result.dc, result.rc);
     }
 
@@ -157,6 +159,18 @@ static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wpar
         case WM_DESTROY:
         {
             global_running = false;
+        } break;
+
+        case WM_SIZE:
+        {
+            i32 width = (i32)(lparam & 0xffff);
+            i32 height = (i32)((lparam >> 16) & 0xffff);
+
+            assert(width);
+            assert(height);
+
+            global_window.width = width;
+            global_window.height = height;
         } break;
 
         default:
@@ -250,7 +264,7 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
                 dt_carried -= TIMESTEP_SEC;
 
                 win32_update_input(input, prev_input, TIMESTEP_SEC);
-                update_and_render(input);
+                update_and_render(input, global_window.width, global_window.height);
 
                 PlatformInput *temp_input = input;
                 input = prev_input;
