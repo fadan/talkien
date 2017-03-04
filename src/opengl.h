@@ -100,6 +100,7 @@ gdi_import void __stdcall glDisable (GLenum cap);
 gdi_import void __stdcall glDrawElements (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 gdi_import void __stdcall glScissor (GLint x, GLint y, GLsizei width, GLsizei height);
 
+
 #define GL_EXTENSIONS_LIST \
     GLARB(GENBUFFERS,               GenBuffers) \
     GLARB(BINDBUFFER,               BindBuffer) \
@@ -134,7 +135,7 @@ gdi_import void __stdcall glScissor (GLint x, GLint y, GLsizei width, GLsizei he
 #define GLARB(a, b) GLE(a##ARB, b##ARB)
 #define GLEXT(a, b) GLE(a##EXT, b##EXT)
 
-#define GLE(a, b) PFNGL##a##PROC gl##b;
+#define GLE(a, b) static PFNGL##a##PROC gl##b;
 GL_EXTENSIONS_LIST
 #undef GLE
 
@@ -157,7 +158,7 @@ static GLuint opengl_compile_shader(char const *source, GLenum type, char *error
     if (!status)
     {
         glGetInfoLogARB(handle, error_length, 0, error);
-        invalid_codepath;
+        assert_always();
     }
 
     return handle;
@@ -188,7 +189,7 @@ static GLuint opengl_create_program(char *vertex_source, char *fragment_source, 
     if (!status)
     {
         glGetInfoLogARB(handle, error_length, 0, error);
-        invalid_codepath;
+        assert_always();
     }
 
     return handle;

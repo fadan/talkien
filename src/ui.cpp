@@ -136,6 +136,12 @@ static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
     global_imgui->KeyShift = input->shift_down != 0;
     global_imgui->KeyAlt = input->alt_down != 0;
 
+    for (u32 character_index = 0; character_index < input->character_count; ++character_index)
+    {
+        char *character = input->characters + character_index;
+        global_imgui->AddInputCharacter(*character);
+    }
+
     ImGui::NewFrame();
 }
 

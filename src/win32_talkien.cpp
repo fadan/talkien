@@ -6,8 +6,8 @@
 
 #include "talkien.cpp"
 
-static Win32Window global_window;
 static b32 global_running;
+static Win32Window global_window;
 
 #define win32_open_window(title, width, height, wndproc, ...) win32_open_window_(title##"WndClass", title, width, height, wndproc, __VA_ARGS__)
 static HWND win32_open_window_(char *wndclass_name, char *title, i32 width, i32 height, WNDPROC wndproc, b32 show = true)
@@ -91,7 +91,7 @@ static HGLRC win32_opengl_create_context(HDC dc, i32 *pixel_format_attribs, i32 
     }
     else
     {
-        assert(!"Init wgl extensions before calling this function!");
+        assert_always("Init wgl extensions before calling this function");
     }
 
     return rc;
@@ -135,15 +135,17 @@ static Win32Window win32_open_window_init_with_opengl_(char *wndclass_name, char
 
         win32_init_opengl_extensions();
 
-        if (wglSwapIntervalEXT)
-        {
-            wglSwapIntervalEXT(1);
-        }
+        RECT rect;
+        GetClientRect(result.wnd, &rect);
+
+        i32 client_width = rect.right - rect.left;
+        i32 client_height = rect.bottom - rect.top;
 
         result.dc = GetDC(result.wnd);
         result.rc = win32_opengl_create_context(result.dc, pixel_format_attribs, context_attribs);
-        result.width = width;
-        result.height = height;
+        result.width = client_width;
+        result.height = client_height;
+
         result.initialized = wglMakeCurrent(result.dc, result.rc);
     }
 
@@ -166,11 +168,16 @@ static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wpar
             i32 width = (i32)(lparam & 0xffff);
             i32 height = (i32)((lparam >> 16) & 0xffff);
 
-            assert(width);
-            assert(height);
-
             global_window.width = width;
             global_window.height = height;
+        } break;
+
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            assert_always("Keyboard input came in as a non-dispatch message");
         } break;
 
         default:
@@ -181,7 +188,7 @@ static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wpar
     return result;
 }
 
-static void win32_process_messages()
+static void win32_process_messages(PlatformInput *input, PlatformInput *prev_input)
 {
     MSG msg;
     while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE))
@@ -192,6 +199,63 @@ static void win32_process_messages()
             case WM_QUIT:
             {
                 global_running = false;
+            } break;
+
+            case WM_CHAR:
+            {
+                assert(input->character_count < array_count(input->characters));
+                if (input->character_count < array_count(input->characters))
+                {
+                    input->characters[input->character_count++] = (char)msg.wParam;
+                }
+            } break;
+
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                u32 button = button_count;
+                switch (msg.wParam)
+                {
+                    case VK_TAB:    { button = button_tab; } break;
+                    case VK_LEFT:   { button = button_left; } break;
+                    case VK_RIGHT:  { button = button_right; } break;
+                    case VK_UP:     { button = button_up; } break;
+                    case VK_DOWN:   { button = button_down; } break;
+                    case VK_PRIOR:  { button = button_pageup; } break;
+                    case VK_NEXT:   { button = button_pagedown; } break;
+                    case VK_HOME:   { button = button_home; } break;
+                    case VK_END:    { button = button_end; } break;
+                    case VK_DELETE: { button = button_delete; } break;
+                    case VK_BACK:   { button = button_backspace; } break;
+                    case VK_RETURN: { button = button_enter; } break;
+                    case VK_ESCAPE: { button = button_esc; } break;
+                    case 'A':       { button = button_a; } break;
+                    case 'C':       { button = button_c; } break;
+                    case 'V':       { button = button_v; } break;
+                    case 'X':       { button = button_x; } break;
+                    case 'Y':       { button = button_y; } break;
+                    case 'Z':       { button = button_z; } break;
+                }
+                b32 was_down = ((msg.lParam & (1 << 30)) != 0);
+                b32 is_down = ((msg.lParam & (1 << 31)) == 0);
+
+                if ((was_down != is_down) && (button < button_count))
+                {
+                    assert(button < array_count(input->buttons));
+                    input->buttons[button] = is_down;
+                }
+
+                if (message == WM_KEYDOWN)
+                {
+                    TranslateMessage(&msg);
+                }
+            } break;
+
+            case WM_MOUSEWHEEL:
+            {
+                input->mouse_z = (f32)GET_WHEEL_DELTA_WPARAM(msg.wParam) / (f32)WHEEL_DELTA;
             } break;
 
             default:
@@ -205,10 +269,10 @@ static void win32_process_messages()
 
 static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, f32 dt)
 {
-    win32_process_messages();
-    
     *input = {0};
 
+    win32_process_messages(input, prev_input);
+    
     input->dt = dt;
     input->shift_down = (GetKeyState(VK_SHIFT) & (1 << 15));
     input->alt_down = (GetKeyState(VK_MENU) & (1 << 15));
@@ -220,7 +284,6 @@ static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, 
 
     input->mouse_x = (f32)mouse_p.x;
     input->mouse_y = (f32)mouse_p.y;
-    input->mouse_z = 0;
 
     DWORD mouse_button_id[mouse_button_count] =
     {
@@ -243,35 +306,29 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
 
     if (global_window.initialized)
     {
-        f32 dt_carried = 0;
-        f32 t0 = 0;
-
         PlatformInput inputs[2] = {0};
         PlatformInput *input = &inputs[0];
         PlatformInput *prev_input = &inputs[1];
 
+        if (wglSwapIntervalEXT)
+        {
+            wglSwapIntervalEXT(1);
+        }
+        
+        f32 t0 = win32_get_time();
+        f32 dt = 0;
+
         global_running = true;
         while (global_running)
         {
-            f32 t = win32_get_time();
-            f32 dt = t - t0;
+            win32_update_input(input, prev_input, dt);
+            update_and_render(input, global_window.width, global_window.height);
+            swap_values(PlatformInput *, input, prev_input);
 
-            t0 = t;
-            dt_carried += dt;
-
-            while (dt_carried > TIMESTEP_SEC)
-            {
-                dt_carried -= TIMESTEP_SEC;
-
-                win32_update_input(input, prev_input, TIMESTEP_SEC);
-                update_and_render(input, global_window.width, global_window.height);
-
-                PlatformInput *temp_input = input;
-                input = prev_input;
-                prev_input = temp_input;
-
-                SwapBuffers(global_window.dc);
-            }
+            SwapBuffers(global_window.dc);
+            f32 t1 = win32_get_time();
+            dt = t1 - t0;
+            t0 = t1;
         }
     }
     

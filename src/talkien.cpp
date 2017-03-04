@@ -22,8 +22,8 @@ static void update_and_render(PlatformInput *input, i32 window_width, i32 window
 
     begin_ui(input, window_width, window_height);
     {
-        //static bool show_test_window = true;
-        //ImGui::ShowTestWindow(&show_test_window);
+        static bool show_test_window = true;
+        ImGui::ShowTestWindow(&show_test_window);
 
         ImGui::Begin("", 0, 0);
         {

@@ -99,17 +99,42 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #else
     #define assert(e)
 #endif
-#define invalid_codepath        assert(!"invalid codepath")
-#define invalid_default_case    default: { invalid_codepath; } break
-#define invalid_else            else { invalid_codepath; }
+#define assert_always(...)         assert(!"Invalid codepath! "## __VA_ARGS__)
+#define invalid_default_case    default: { assert_always(); } break
 
 #define array_count(a)              (sizeof(a) / sizeof((a)[0]))
 #define offset_of(type, element)    ((usize)&(((type *)0)->element))
+#define swap_values(type, a, b) do { type temp__ = (a); (a) = (b); (b) = temp__; } while (0)
 
 #define KB  (1024LL)
 #define MB  (1024LL * KB)
 #define GB  (1024LL * MB)
 #define TB  (1024LL * GB)
+
+enum
+{
+    button_tab,
+    button_left,
+    button_right,
+    button_up,
+    button_down,
+    button_pageup,
+    button_pagedown,
+    button_home,
+    button_end,
+    button_delete,
+    button_backspace,
+    button_enter,
+    button_esc,
+    button_a,
+    button_c,
+    button_v,
+    button_x,
+    button_y,
+    button_z,
+
+    button_count,
+};
 
 enum
 {
@@ -133,5 +158,9 @@ struct PlatformInput
     b32 ctrl_down;
     b32 alt_down;
 
+    b32 buttons[button_count];
     b32 mouse_buttons[mouse_button_count];
+
+    char characters[8];
+    u32 character_count;
 };
