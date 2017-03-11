@@ -1,9 +1,12 @@
+#pragma warning(push)
+#pragma warning(disable: 4459)
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
 #include "imgui.h"
 
 #include "imgui_demo.cpp"
 #include "imgui_draw.cpp"
 #include "imgui.cpp"
+#pragma warning(pop)
 
 #define UI_SHADER_VERSION "#version 330\n"
 
@@ -127,9 +130,9 @@ static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
     global_imgui->DeltaTime = input->dt;
 
     global_imgui->MousePos = ImVec2(input->mouse_x, input->mouse_y);
-    global_imgui->MouseDown[0] = input->mouse_buttons[mouse_button_left] != 0;
-    global_imgui->MouseDown[1] = input->mouse_buttons[mouse_button_right] != 0;
-    global_imgui->MouseDown[2] = input->mouse_buttons[mouse_button_middle] != 0;
+    global_imgui->MouseDown[0] = input->mouse_buttons[mouse_button_left].is_down != 0;
+    global_imgui->MouseDown[1] = input->mouse_buttons[mouse_button_right].is_down != 0;
+    global_imgui->MouseDown[2] = input->mouse_buttons[mouse_button_middle].is_down != 0;
     global_imgui->MouseWheel = input->mouse_z;
 
     global_imgui->KeyCtrl = input->ctrl_down != 0;
@@ -140,6 +143,10 @@ static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
     {
         char *character = input->characters + character_index;
         global_imgui->AddInputCharacter(*character);
+    }
+    for (u32 button_index = 0; button_index < button_count; ++button_index)
+    {
+        global_imgui->KeysDown[button_index] = (input->buttons[button_index].is_down != 0);
     }
 
     ImGui::NewFrame();

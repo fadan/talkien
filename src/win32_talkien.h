@@ -64,23 +64,20 @@ struct Win32Window
     b32 initialized;
 };
 
-inline f32 win32_get_time()
+struct Win32MemoryBlock
 {
-    static i64 start = 0;
-    static i64 freq = 0;
-    f32 t = 0.0;
+    PlatformMemoryBlock memblock;
+    Win32MemoryBlock *prev;
+    Win32MemoryBlock *next;
+    u64 flags;
+};
 
-    if (!start)
-    {
-        QueryPerformanceCounter((LARGE_INTEGER *)&start);
-        QueryPerformanceFrequency((LARGE_INTEGER *)&freq);
-    }
-    else
-    {
-        i64 counter = 0;
-        QueryPerformanceCounter((LARGE_INTEGER *)&counter);
-        t = (f32)((counter - start) / (f64)freq);
-    }
+struct Win32State
+{
+    b32 running;
+    Win32Window window;
 
-    return t;
-}
+    Mutex memory_mutex;
+    Win32MemoryBlock memory_sentinel;
+};
+

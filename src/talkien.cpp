@@ -1,14 +1,19 @@
 #include "ui.cpp"
 
-static void update_and_render(PlatformInput *input, i32 window_width, i32 window_height)
+struct AppState
 {
-    static b32 initialized = false;
-    if (!initialized)
+    MemoryStack total_memory;
+};
+
+static void update_and_render(AppMemory *memory, PlatformInput *input, i32 window_width, i32 window_height)
+{
+    AppState *app_state = memory->app_state;
+    if (!app_state)
     {
+        app_state = memory->app_state = bootstrap_push_struct(AppState, total_memory);
         init_ui();
-        initialized = true;
     }
-    
+
     ImVec4 clear_color = ImColor(114, 144, 154);
     glEnable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
@@ -22,24 +27,32 @@ static void update_and_render(PlatformInput *input, i32 window_width, i32 window
 
     begin_ui(input, window_width, window_height);
     {
-        static bool show_test_window = true;
-        ImGui::ShowTestWindow(&show_test_window);
-
-        ImGui::Begin("", 0, 0);
+        if (ImGui::BeginMainMenuBar())
         {
-            ImGui::Text("window_width: %d", window_width);
-            ImGui::Text("window_height: %d", window_height);
+            if (ImGui::BeginMenu("File"))
+            {
+                // ShowExampleMenuFile();
+                if (ImGui::MenuItem("Exit", "Alt+F4"))
+                {
 
-            ImGui::Text("mouse_x: %f", input->mouse_x);
-            ImGui::Text("mouse_y: %f", input->mouse_y);
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+        
+        ImGui::SetNextWindowPos(ImVec2(10, 30));
 
-            ImGui::Text("ImGui::MousePos.x: %f", global_imgui->MousePos.x);
-            ImGui::Text("ImGui::MousePos.y: %f", global_imgui->MousePos.y);
+        ImGui::Begin("", 0, ImVec2(0, 0), 0.3f, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
+        {
+            PlatformMemoryStats memory_stats = platform.get_memory_stats();
 
-            ImGui::Text("ImGui::DisplaySize.x: %f", global_imgui->DisplaySize.x);
-            ImGui::Text("ImGui::DisplaySize.y: %f", global_imgui->DisplaySize.y);
-
-            ImGui::Text("ImGui::Framerate: %f ms/f", 1000.0f / global_imgui->Framerate);
+            ImGui::Text("Mouse: (%.1f,%.1f) ", global_imgui->MousePos.x, global_imgui->MousePos.y);
+            ImGui::Text("Allocs: %d ", global_imgui->MetricsAllocs);
+            ImGui::Text("Vertices: %d Indices: %3d  ", global_imgui->MetricsRenderVertices, global_imgui->MetricsRenderIndices);
+            ImGui::Text("Windows: %d ", global_imgui->MetricsActiveWindows);
+            ImGui::Text("Memory blocks: %d Size: %dK Used: %db ", memory_stats.num_memblocks, memory_stats.total_size/KB, memory_stats.total_used);
+            ImGui::Text("Frame time: %.2f ms/f ", 1000.0f / global_imgui->Framerate);
         }
         ImGui::End();
     }

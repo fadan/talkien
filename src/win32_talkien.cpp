@@ -1,13 +1,10 @@
-#define TIMESTEP_HZ     30
-#define TIMESTEP_SEC    (1.0f / TIMESTEP_HZ)
-
 #include "platform.h"
 #include "win32_talkien.h"
 
 #include "talkien.cpp"
 
-static b32 global_running;
-static Win32Window global_window;
+Platform platform;
+static Win32State global_state;
 
 #define win32_open_window(title, width, height, wndproc, ...) win32_open_window_(title##"WndClass", title, width, height, wndproc, __VA_ARGS__)
 static HWND win32_open_window_(char *wndclass_name, char *title, i32 width, i32 height, WNDPROC wndproc, b32 show = true)
@@ -152,6 +149,27 @@ static Win32Window win32_open_window_init_with_opengl_(char *wndclass_name, char
     return result;
 }
 
+inline f32 win32_get_time()
+{
+    static i64 start = 0;
+    static i64 freq = 0;
+    f32 t = 0.0;
+
+    if (!start)
+    {
+        QueryPerformanceCounter((LARGE_INTEGER *)&start);
+        QueryPerformanceFrequency((LARGE_INTEGER *)&freq);
+    }
+    else
+    {
+        i64 counter = 0;
+        QueryPerformanceCounter((LARGE_INTEGER *)&counter);
+        t = (f32)((counter - start) / (f64)freq);
+    }
+
+    return t;
+}
+
 static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
     LRESULT result = 0;
@@ -160,7 +178,7 @@ static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wpar
         case WM_CLOSE:
         case WM_DESTROY:
         {
-            global_running = false;
+            global_state.running = false;
         } break;
 
         case WM_SIZE:
@@ -168,8 +186,8 @@ static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wpar
             i32 width = (i32)(lparam & 0xffff);
             i32 height = (i32)((lparam >> 16) & 0xffff);
 
-            global_window.width = width;
-            global_window.height = height;
+            global_state.window.width = width;
+            global_state.window.height = height;
         } break;
 
         case WM_SYSKEYDOWN:
@@ -188,6 +206,15 @@ static LRESULT CALLBACK win32_window_proc(HWND window, UINT message, WPARAM wpar
     return result;
 }
 
+static void win32_process_button(PlatformButtonState *state, b32 is_down)
+{
+    if (state->is_down != is_down)
+    {
+        state->is_down = is_down;
+        ++state->transitions;
+    }
+}
+
 static void win32_process_messages(PlatformInput *input, PlatformInput *prev_input)
 {
     MSG msg;
@@ -198,7 +225,7 @@ static void win32_process_messages(PlatformInput *input, PlatformInput *prev_inp
         {
             case WM_QUIT:
             {
-                global_running = false;
+                global_state.running = false;
             } break;
 
             case WM_CHAR:
@@ -215,36 +242,33 @@ static void win32_process_messages(PlatformInput *input, PlatformInput *prev_inp
             case WM_KEYDOWN:
             case WM_KEYUP:
             {
-                u32 button = button_count;
-                switch (msg.wParam)
-                {
-                    case VK_TAB:    { button = button_tab; } break;
-                    case VK_LEFT:   { button = button_left; } break;
-                    case VK_RIGHT:  { button = button_right; } break;
-                    case VK_UP:     { button = button_up; } break;
-                    case VK_DOWN:   { button = button_down; } break;
-                    case VK_PRIOR:  { button = button_pageup; } break;
-                    case VK_NEXT:   { button = button_pagedown; } break;
-                    case VK_HOME:   { button = button_home; } break;
-                    case VK_END:    { button = button_end; } break;
-                    case VK_DELETE: { button = button_delete; } break;
-                    case VK_BACK:   { button = button_backspace; } break;
-                    case VK_RETURN: { button = button_enter; } break;
-                    case VK_ESCAPE: { button = button_esc; } break;
-                    case 'A':       { button = button_a; } break;
-                    case 'C':       { button = button_c; } break;
-                    case 'V':       { button = button_v; } break;
-                    case 'X':       { button = button_x; } break;
-                    case 'Y':       { button = button_y; } break;
-                    case 'Z':       { button = button_z; } break;
-                }
                 b32 was_down = ((msg.lParam & (1 << 30)) != 0);
                 b32 is_down = ((msg.lParam & (1 << 31)) == 0);
 
-                if ((was_down != is_down) && (button < button_count))
+                if (was_down != is_down)
                 {
-                    assert(button < array_count(input->buttons));
-                    input->buttons[button] = is_down;
+                    switch (msg.wParam)
+                    {
+                        case VK_TAB:    { win32_process_button(&input->buttons[button_tab],       is_down); } break;
+                        case VK_LEFT:   { win32_process_button(&input->buttons[button_left],      is_down); } break;
+                        case VK_RIGHT:  { win32_process_button(&input->buttons[button_right],     is_down); } break;
+                        case VK_UP:     { win32_process_button(&input->buttons[button_up],        is_down); } break;
+                        case VK_DOWN:   { win32_process_button(&input->buttons[button_down],      is_down); } break;
+                        case VK_PRIOR:  { win32_process_button(&input->buttons[button_pageup],    is_down); } break;
+                        case VK_NEXT:   { win32_process_button(&input->buttons[button_pagedown],  is_down); } break;
+                        case VK_HOME:   { win32_process_button(&input->buttons[button_home],      is_down); } break;
+                        case VK_END:    { win32_process_button(&input->buttons[button_end],       is_down); } break;
+                        case VK_DELETE: { win32_process_button(&input->buttons[button_delete],    is_down); } break;
+                        case VK_BACK:   { win32_process_button(&input->buttons[button_backspace], is_down); } break;
+                        case VK_RETURN: { win32_process_button(&input->buttons[button_enter],     is_down); } break;
+                        case VK_ESCAPE: { win32_process_button(&input->buttons[button_esc],       is_down); } break;
+                        case 'A':       { win32_process_button(&input->buttons[button_a],         is_down); } break;
+                        case 'C':       { win32_process_button(&input->buttons[button_c],         is_down); } break;
+                        case 'V':       { win32_process_button(&input->buttons[button_v],         is_down); } break;
+                        case 'X':       { win32_process_button(&input->buttons[button_x],         is_down); } break;
+                        case 'Y':       { win32_process_button(&input->buttons[button_y],         is_down); } break;
+                        case 'Z':       { win32_process_button(&input->buttons[button_z],         is_down); } break;
+                    }
                 }
 
                 if (message == WM_KEYDOWN)
@@ -271,6 +295,11 @@ static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, 
 {
     *input = {0};
 
+    for (u32 button_index = 0; button_index < button_count; ++button_index)
+    {
+        input->buttons[button_index].is_down = prev_input->buttons[button_index].is_down;
+    }
+
     win32_process_messages(input, prev_input);
     
     input->dt = dt;
@@ -280,7 +309,7 @@ static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, 
 
     POINT mouse_p;
     GetCursorPos(&mouse_p);
-    ScreenToClient(global_window.wnd, &mouse_p);
+    ScreenToClient(global_state.window.wnd, &mouse_p);
 
     input->mouse_x = (f32)mouse_p.x;
     input->mouse_y = (f32)mouse_p.y;
@@ -296,19 +325,96 @@ static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, 
 
     for (u32 mouse_button_index = 0; mouse_button_index < mouse_button_count; ++mouse_button_index)
     {
-        input->mouse_buttons[mouse_button_index] = GetKeyState(mouse_button_id[mouse_button_index]) & (1 << 15);
+        input->mouse_buttons[mouse_button_index] = prev_input->mouse_buttons[mouse_button_index];
+        input->mouse_buttons[mouse_button_index].transitions = 0;
+
+        b32 is_down = GetKeyState(mouse_button_id[mouse_button_index]) & (1 << 15);
+        win32_process_button(&input->mouse_buttons[mouse_button_index], is_down);
     }
+}
+
+static PLATFORM_ALLOCATE_PROC(win32_allocate)
+{
+    assert(sizeof(Win32MemoryBlock) == 64);
+
+    usize page_size = 4096;
+    usize total_size = size + sizeof(Win32MemoryBlock);
+    usize base_offset = sizeof(Win32MemoryBlock);
+
+    Win32MemoryBlock *block = (Win32MemoryBlock *)VirtualAlloc(0, total_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    assert(block);
+
+    block->memblock.base = (u8 *)block + base_offset;
+    assert(block->memblock.used == 0);
+    assert(block->memblock.prev == 0);
+
+    Win32MemoryBlock *sentinel = &global_state.memory_sentinel;
+    block->next = sentinel;
+    block->memblock.size = size;
+
+    begin_mutex(&global_state.memory_mutex);
+    block->prev = sentinel->prev;
+    block->prev->next = block;
+    block->prev->prev = block;
+    end_mutex(&global_state.memory_mutex);
+
+    PlatformMemoryBlock *memblock = &block->memblock;
+    return memblock;
+}
+
+static PLATFORM_DEALLOCATE_PROC(win32_deallocate)
+{
+    if (memblock)
+    {
+        Win32MemoryBlock *block = (Win32MemoryBlock *)memblock;
+
+        begin_mutex(&global_state.memory_mutex);
+        block->prev->next = block->next;
+        block->next->prev = block->prev;
+        end_mutex(&global_state.memory_mutex);
+
+        b32 result = VirtualFree(block, 0, MEM_RELEASE);
+        assert(result);
+    }
+}
+
+static PLATFORM_GET_MEMORY_STATS(win32_get_memory_stats)
+{
+    PlatformMemoryStats result = {0};
+
+    begin_mutex(&global_state.memory_mutex);
+    Win32MemoryBlock *sentinel = &global_state.memory_sentinel;
+    for (Win32MemoryBlock *memblock = sentinel->next; memblock != sentinel; memblock = memblock->next)
+    {
+        ++result.num_memblocks;
+
+        result.total_size += memblock->memblock.size;
+        result.total_used += memblock->memblock.used;
+    }
+    end_mutex(&global_state.memory_mutex);
+
+    return result;
 }
 
 i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd_show)
 {
-    global_window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
+    Win32State *state = &global_state;
+    state->memory_sentinel.prev = &state->memory_sentinel;
+    state->memory_sentinel.next = &state->memory_sentinel;
+    state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
 
-    if (global_window.initialized)
+    if (state->window.initialized)
     {
         PlatformInput inputs[2] = {0};
         PlatformInput *input = &inputs[0];
         PlatformInput *prev_input = &inputs[1];
+
+        AppMemory app_memory = {0}; 
+        app_memory.platform.allocate = win32_allocate;
+        app_memory.platform.deallocate = win32_deallocate;
+        app_memory.platform.get_memory_stats = win32_get_memory_stats;
+
+        platform = app_memory.platform;
 
         if (wglSwapIntervalEXT)
         {
@@ -318,14 +424,14 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
         f32 t0 = win32_get_time();
         f32 dt = 0;
 
-        global_running = true;
-        while (global_running)
+        state->running = true;
+        while (state->running)
         {
             win32_update_input(input, prev_input, dt);
-            update_and_render(input, global_window.width, global_window.height);
+            update_and_render(&app_memory, input, state->window.width, state->window.height);
             swap_values(PlatformInput *, input, prev_input);
 
-            SwapBuffers(global_window.dc);
+            SwapBuffers(state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;
             t0 = t1;

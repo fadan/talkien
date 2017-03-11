@@ -18,6 +18,9 @@ set cplflags=-DINTERNAL_BUILD=1
 :: -Od : disable optimization
 set cplflags=%cplflags% -Oi -Od
 
+:: Preprocessor output
+::set cplflags=%cplflags% -P
+
 :: Code gen flags
 :: -fp:fast : fast floating-point behavior
 :: -Gm-     : disable minimal rebuild
@@ -37,7 +40,8 @@ set cplflags=%cplflags% -fp:fast -Gm- -GR- -EHa- -MTd -Z7
 :: -wd4505 : unreferenced local function has been removed
 :: -wd4189 : local variable is initialized but not referenced
 :: -wd4101 : unreferenced local variable 
-set cplflags=%cplflags% -nologo -FC -WX -W4 -wd4100 -wd4201 -wd4505 -wd4189 -wd4101
+:: -wd4127 : conditional expression is constant
+set cplflags=%cplflags% -nologo -FC -WX -W4 -wd4100 -wd4201 -wd4505 -wd4189 -wd4101 -wd4127
 
 ::
 :: Linker flags
