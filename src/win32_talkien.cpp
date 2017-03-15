@@ -3,7 +3,6 @@
 
 #include "talkien.cpp"
 
-Platform platform;
 static Win32State global_state;
 
 #define win32_open_window(title, width, height, wndproc, ...) win32_open_window_(title##"WndClass", title, width, height, wndproc, __VA_ARGS__)
@@ -54,7 +53,7 @@ static b32 win32_init_opengl_extensions()
         if (wglMakeCurrent(dummy.dc, dummy.rc))
         {
             wgl_init_extensions();
-            opengl_init_extensions();
+            opengl_init_extensions(&gl);
 
             result = wglMakeCurrent(0, 0);
         }
@@ -333,7 +332,7 @@ static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, 
     }
 }
 
-static PLATFORM_ALLOCATE_PROC(win32_allocate)
+static PLATFORM_ALLOCATE(win32_allocate)
 {
     assert(sizeof(Win32MemoryBlock) == 64);
 
@@ -362,7 +361,7 @@ static PLATFORM_ALLOCATE_PROC(win32_allocate)
     return memblock;
 }
 
-static PLATFORM_DEALLOCATE_PROC(win32_deallocate)
+static PLATFORM_DEALLOCATE(win32_deallocate)
 {
     if (memblock)
     {
@@ -414,8 +413,6 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
         app_memory.platform.deallocate = win32_deallocate;
         app_memory.platform.get_memory_stats = win32_get_memory_stats;
 
-        platform = app_memory.platform;
-
         if (wglSwapIntervalEXT)
         {
             wglSwapIntervalEXT(1);
@@ -428,9 +425,15 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
         while (state->running)
         {
             win32_update_input(input, prev_input, dt);
+            
             update_and_render(&app_memory, input, state->window.width, state->window.height);
-            swap_values(PlatformInput *, input, prev_input);
 
+            if (input->quit_requested)
+            {
+                state->running = false;
+            }
+
+            swap_values(PlatformInput *, input, prev_input);
             SwapBuffers(state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;

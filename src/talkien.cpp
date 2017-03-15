@@ -5,8 +5,13 @@ struct AppState
     MemoryStack total_memory;
 };
 
-static void update_and_render(AppMemory *memory, PlatformInput *input, i32 window_width, i32 window_height)
+Platform platform;
+OpenGL gl;
+
+extern "C" UPDATE_AND_RENDER(update_and_render)
 {
+    platform = memory->platform;
+
     AppState *app_state = memory->app_state;
     if (!app_state)
     {
@@ -14,16 +19,16 @@ static void update_and_render(AppMemory *memory, PlatformInput *input, i32 windo
         init_ui();
     }
 
-    ImVec4 clear_color = ImColor(114, 144, 154);
-    glEnable(GL_SCISSOR_TEST);
-    glEnable(GL_BLEND);
+    ImVec4 clear_color = ImColor(49, 55, 66);
+    gl.Enable(GL_SCISSOR_TEST);
+    gl.Enable(GL_BLEND);
 
-    glScissor(0, 0, window_width, window_height);
+    gl.Scissor(0, 0, window_width, window_height);
     
-    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT);
+    gl.ClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+    gl.Clear(GL_COLOR_BUFFER_BIT);
 
-    glViewport(0, 0, window_width, window_height);
+    gl.Viewport(0, 0, window_width, window_height);
 
     begin_ui(input, window_width, window_height);
     {
@@ -34,7 +39,7 @@ static void update_and_render(AppMemory *memory, PlatformInput *input, i32 windo
                 // ShowExampleMenuFile();
                 if (ImGui::MenuItem("Exit", "Alt+F4"))
                 {
-
+                    input->quit_requested = true;
                 }
                 ImGui::EndMenu();
             }

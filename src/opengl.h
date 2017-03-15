@@ -6,32 +6,29 @@
 #define GL_UNSIGNED_SHORT   0x1403
 #define GL_UNSIGNED_INT     0x1405
 
-#define GL_OBJECT_COMPILE_STATUS_ARB      0x8B81
-#define GL_VERTEX_SHADER_ARB              0x8B31
-#define GL_FRAGMENT_SHADER_ARB            0x8B30
-#define GL_OBJECT_LINK_STATUS_ARB         0x8B82
-#define GL_ARRAY_BUFFER_ARB               0x8892
-
+#define GL_ARRAY_BUFFER                   0x8892
+#define GL_BLEND                          0x0BE2
+#define GL_COLOR_BUFFER_BIT               0x00004000
+#define GL_COMPILE_STATUS                 0x8B81
+#define GL_CULL_FACE                      0x0B44
+#define GL_DEPTH_TEST                     0x0B71
+#define GL_ELEMENT_ARRAY_BUFFER           0x8893
+#define GL_FRAGMENT_SHADER                0x8B30
+#define GL_FUNC_ADD                       0x8006
+#define GL_LINEAR                         0x2601
+#define GL_LINK_STATUS                    0x8B82
+#define GL_ONE_MINUS_SRC_ALPHA            0x0303
+#define GL_RGBA                           0x1908
+#define GL_SCISSOR_TEST                   0x0C11
+#define GL_SRC_ALPHA                      0x0302
+#define GL_STREAM_DRAW                    0x88E0
+#define GL_TEXTURE0                       0x84C0
 #define GL_TEXTURE_2D                     0x0DE1
 #define GL_TEXTURE_MAG_FILTER             0x2800
 #define GL_TEXTURE_MIN_FILTER             0x2801
-#define GL_LINEAR                         0x2601
-#define GL_UNPACK_ROW_LENGTH              0x0CF2
-#define GL_RGBA                           0x1908
-#define GL_COLOR_BUFFER_BIT               0x00004000
-#define GL_BLEND                          0x0BE2
-#define GL_FUNC_ADD                       0x8006
-#define GL_SRC_ALPHA                      0x0302
-#define GL_ONE_MINUS_SRC_ALPHA            0x0303
-#define GL_CULL_FACE                      0x0B44
-#define GL_DEPTH_TEST                     0x0B71
-#define GL_TEXTURE0                       0x84C0
-#define GL_ARRAY_BUFFER                   0x8892
-#define GL_STREAM_DRAW                    0x88E0
-#define GL_ELEMENT_ARRAY_BUFFER           0x8893
-#define GL_SCISSOR_TEST                   0x0C11
-
 #define GL_TRIANGLES                      0x0004
+#define GL_UNPACK_ROW_LENGTH              0x0CF2
+#define GL_VERTEX_SHADER                  0x8B31
 
 typedef unsigned int GLenum;
 typedef unsigned char GLboolean;
@@ -48,116 +45,137 @@ typedef float GLclampf;
 typedef double GLdouble;
 typedef double GLclampd;
 typedef void GLvoid;
-
 typedef intptr GLsizeiptr;
-typedef intptr GLsizeiptrARB;
-typedef uint GLhandleARB;
-typedef char GLcharARB;
+typedef char GLchar;
 
-typedef void (__stdcall * PFNGLGENBUFFERSARBPROC) (GLsizei n, GLuint *buffers);
-typedef void (__stdcall * PFNGLBINDBUFFERARBPROC) (GLenum target, GLuint buffer);
-typedef void (__stdcall * PFNGLBUFFERDATAARBPROC) (GLenum target, GLsizeiptrARB size, const void *data, GLenum usage);
-typedef void (__stdcall * PFNGLGENVERTEXARRAYSPROC) (GLsizei n, GLuint *arrays);
+typedef void (__stdcall * PFNGLACTIVETEXTUREPROC) (GLenum texture);
+typedef void (__stdcall * PFNGLBINDBUFFERPROC) (GLenum target, GLuint buffer);
+typedef void (__stdcall * PFNGLBINDTEXTUREPROC) (GLenum target, GLuint texture);
 typedef void (__stdcall * PFNGLBINDVERTEXARRAYPROC) (GLuint array);
-typedef void (__stdcall * PFNGLACTIVETEXTUREARBPROC) (GLenum texture);
 typedef void (__stdcall * PFNGLBLENDEQUATIONPROC) (GLenum mode);
-typedef void (__stdcall * PFNGLENABLEVERTEXATTRIBARRAYARBPROC) (GLuint index);
-typedef void (__stdcall * PFNGLDISABLEVERTEXATTRIBARRAYARBPROC) (GLuint index);
-typedef void (__stdcall * PFNGLVERTEXATTRIBPOINTERARBPROC) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+typedef void (__stdcall * PFNGLBLENDFUNCPROC) (GLenum sfactor, GLenum dfactor);
+typedef void (__stdcall * PFNGLBUFFERDATAPROC) (GLenum target, GLsizeiptr size, const void *data, GLenum usage);
+typedef void (__stdcall * PFNGLCLEARCOLORPROC) (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+typedef void (__stdcall * PFNGLCLEARPROC) (GLbitfield mask);
+typedef void (__stdcall * PFNGLDISABLEPROC) (GLenum cap);
+typedef void (__stdcall * PFNGLDISABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void (__stdcall * PFNGLDRAWELEMENTSPROC) (GLenum mode, GLsizei count, GLenum type, const void *indices);
+typedef void (__stdcall * PFNGLENABLEPROC) (GLenum cap);
+typedef void (__stdcall * PFNGLENABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void (__stdcall * PFNGLGENBUFFERSPROC) (GLsizei n, GLuint *buffers);
+typedef void (__stdcall * PFNGLGENTEXTURESPROC) (GLsizei n, GLuint *textures);
+typedef void (__stdcall * PFNGLGENVERTEXARRAYSPROC) (GLsizei n, GLuint *arrays);
+typedef void (__stdcall * PFNGLSCISSORPROC) (GLint x, GLint y, GLsizei width, GLsizei height);
+typedef void (__stdcall * PFNGLTEXIMAGE2DPROC) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels);
+typedef void (__stdcall * PFNGLTEXPARAMETERIPROC) (GLenum target, GLenum pname, GLint param);
+typedef void (__stdcall * PFNGLVERTEXATTRIBPOINTERPROC) (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+typedef void (__stdcall * PFNGLVIEWPORTPROC) (GLint x, GLint y, GLsizei width, GLsizei height);
 
-typedef void (__stdcall * PFNGLATTACHOBJECTARBPROC) (GLhandleARB containerObj, GLhandleARB obj);
-typedef void (__stdcall * PFNGLBINDATTRIBLOCATIONARBPROC) (GLhandleARB programObj, GLuint index, const GLcharARB *name);
-typedef void (__stdcall * PFNGLCOMPILESHADERARBPROC) (GLhandleARB shaderObj);
-typedef GLhandleARB (__stdcall * PFNGLCREATEPROGRAMOBJECTARBPROC) (void);
-typedef GLhandleARB (__stdcall * PFNGLCREATESHADEROBJECTARBPROC) (GLenum shaderType);
-typedef void (__stdcall * PFNGLDELETEOBJECTARBPROC) (GLhandleARB obj);
-typedef void (__stdcall * PFNGLDETACHOBJECTARBPROC) (GLhandleARB containerObj, GLhandleARB attachedObj);
-typedef void (__stdcall * PFNGLGETINFOLOGARBPROC) (GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *infoLog);
-typedef void (__stdcall * PFNGLGETOBJECTPARAMETERIVARBPROC) (GLhandleARB obj, GLenum pname, GLint *params);
-typedef void (__stdcall * PFNGLLINKPROGRAMARBPROC) (GLhandleARB programObj);
-typedef void (__stdcall * PFNGLUSEPROGRAMOBJECTARBPROC) (GLhandleARB programObj);
-typedef void (__stdcall * PFNGLSHADERSOURCEARBPROC) (GLhandleARB shaderObj, GLsizei count, const GLcharARB **string, const GLint *length);
-typedef GLint (__stdcall * PFNGLGETATTRIBLOCATIONARBPROC) (GLhandleARB programObj, const GLcharARB *name);
-typedef GLint (__stdcall * PFNGLGETUNIFORMLOCATIONARBPROC) (GLhandleARB programObj, const GLcharARB *name);
-typedef void (__stdcall * PFNGLUNIFORM1IARBPROC) (GLint location, GLint v0);
-typedef void (__stdcall * PFNGLUNIFORM1FARBPROC) (GLint location, GLfloat v0);
-typedef void (__stdcall * PFNGLUNIFORMMATRIX4FVARBPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef void (__stdcall * PFNGLUNIFORM4FVARBPROC) (GLint location, GLsizei count, const GLfloat *value);
+typedef void (__stdcall * PFNGLATTACHSHADERPROC) (GLuint program, GLuint shader);
+typedef void (__stdcall * PFNGLBINDATTRIBLOCATIONPROC) (GLuint program, GLuint index, const GLchar *name);
+typedef void (__stdcall * PFNGLCOMPILESHADERPROC) (GLuint shader);
+typedef GLuint (__stdcall * PFNGLCREATEPROGRAMPROC) (void);
+typedef GLuint (__stdcall * PFNGLCREATESHADERPROC) (GLenum type);
+typedef void (__stdcall * PFNGLDELETESHADERPROC) (GLuint shader);
+typedef void (__stdcall * PFNGLDETACHSHADERPROC) (GLuint program, GLuint shader);
+typedef GLint (__stdcall * PFNGLGETATTRIBLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void (__stdcall * PFNGLGETPROGRAMINFOLOGPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef void (__stdcall * PFNGLGETPROGRAMIVPROC) (GLuint program, GLenum pname, GLint *params);
+typedef void (__stdcall * PFNGLGETSHADERIVPROC) (GLuint shader, GLenum pname, GLint *params);
+typedef void (__stdcall * PFNGLGETSHADERINFOLOGPROC) (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+typedef GLint (__stdcall * PFNGLGETUNIFORMLOCATIONPROC) (GLuint program, const GLchar *name);
+typedef void (__stdcall * PFNGLLINKPROGRAMPROC) (GLuint program);
+typedef void (__stdcall * PFNGLUSEPROGRAMPROC) (GLuint program);
+typedef void (__stdcall * PFNGLSHADERSOURCEPROC) (GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length);
+typedef void (__stdcall * PFNGLUNIFORM1IPROC) (GLint location, GLint v0);
+typedef void (__stdcall * PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
+typedef void (__stdcall * PFNGLUNIFORMMATRIX4FVPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void (__stdcall * PFNGLUNIFORM4FVPROC) (GLint location, GLsizei count, const GLfloat *value);
 
-#define gdi_import extern "C" __declspec(dllimport)
+// NOTE(dan): wglGetProcAddress will not work with functions that are directly exported by OpenGL32.dll
+#define GL_FUNCTION_LIST_1_1 \
+    GLCORE(BINDTEXTURE,                 BindTexture) \
+    GLCORE(BLENDFUNC,                   BlendFunc) \
+    GLCORE(CLEAR,                       Clear) \
+    GLCORE(CLEARCOLOR,                  ClearColor) \
+    GLCORE(DISABLE,                     Disable) \
+    GLCORE(DRAWELEMENTS,                DrawElements) \
+    GLCORE(ENABLE,                      Enable) \
+    GLCORE(GENTEXTURES,                 GenTextures) \
+    GLCORE(SCISSOR,                     Scissor) \
+    GLCORE(TEXIMAGE2D,                  TexImage2D) \
+    GLCORE(TEXPARAMETERI,               TexParameteri) \
+    GLCORE(VIEWPORT,                    Viewport) 
 
-gdi_import void __stdcall glGenTextures(GLsizei n, GLuint *textures);
-gdi_import void __stdcall glBindTexture (GLenum target, GLuint texture);
-gdi_import void __stdcall glTexParameteri (GLenum target, GLenum pname, GLint param);
-gdi_import void __stdcall glPixelStorei (GLenum pname, GLint param);
-gdi_import void __stdcall glTexImage2D (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
-gdi_import void __stdcall glViewport (GLint x, GLint y, GLsizei width, GLsizei height);
-gdi_import void __stdcall glClearColor (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
-gdi_import void __stdcall glClear (GLbitfield mask);
-gdi_import void __stdcall glEnable (GLenum cap);
-gdi_import void __stdcall glBlendFunc (GLenum sfactor, GLenum dfactor);
-gdi_import void __stdcall glDisable (GLenum cap);
-gdi_import void __stdcall glDrawElements (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
-gdi_import void __stdcall glScissor (GLint x, GLint y, GLsizei width, GLsizei height);
+#define GL_FUNCITON_LIST \
+    GLCORE(ACTIVETEXTURE,               ActiveTexture) \
+    GLCORE(ATTACHSHADER,                AttachShader) \
+    GLCORE(BINDBUFFER,                  BindBuffer) \
+    GLCORE(BINDATTRIBLOCATION,          BindAttribLocation) \
+    GLCORE(BINDVERTEXARRAY,             BindVertexArray) \
+    GLCORE(BLENDEQUATION,               BlendEquation) \
+    GLCORE(BUFFERDATA,                  BufferData) \
+    GLCORE(COMPILESHADER,               CompileShader) \
+    GLCORE(CREATESHADER,                CreateShader) \
+    GLCORE(DELETESHADER,                DeleteShader) \
+    GLCORE(DETACHSHADER,                DetachShader) \
+    GLCORE(DISABLEVERTEXATTRIBARRAY,    DisableVertexAttribArray) \
+    GLCORE(CREATEPROGRAM,               CreateProgram) \
+    GLCORE(ENABLEVERTEXATTRIBARRAY,     EnableVertexAttribArray) \
+    GLCORE(GENBUFFERS,                  GenBuffers) \
+    GLCORE(GENVERTEXARRAYS,             GenVertexArrays) \
+    GLCORE(GETATTRIBLOCATION,           GetAttribLocation) \
+    GLCORE(GETPROGRAMINFOLOG,           GetProgramInfoLog) \
+    GLCORE(GETPROGRAMIV,                GetProgramiv) \
+    GLCORE(GETSHADERINFOLOG,            GetShaderInfoLog) \
+    GLCORE(GETSHADERIV,                 GetShaderiv) \
+    GLCORE(GETUNIFORMLOCATION,          GetUniformLocation) \
+    GLCORE(LINKPROGRAM,                 LinkProgram) \
+    GLCORE(SHADERSOURCE,                ShaderSource) \
+    GLCORE(UNIFORM1I,                   Uniform1i) \
+    GLCORE(UNIFORM1F,                   Uniform1f) \
+    GLCORE(UNIFORM4FV,                  Uniform4fv) \
+    GLCORE(UNIFORMMATRIX4FV,            UniformMatrix4fv) \
+    GLCORE(USEPROGRAM,                  UseProgram) \
+    GLCORE(VERTEXATTRIBPOINTER,         VertexAttribPointer)
 
+#define GLARB(a, b) GLCORE(a##ARB, b##ARB)
+#define GLEXT(a, b) GLCORE(a##EXT, b##EXT)
 
-#define GL_EXTENSIONS_LIST \
-    GLARB(GENBUFFERS,               GenBuffers) \
-    GLARB(BINDBUFFER,               BindBuffer) \
-    GLARB(BUFFERDATA,               BufferData) \
-    GLE  (GENVERTEXARRAYS,          GenVertexArrays) \
-    GLE  (BINDVERTEXARRAY,          BindVertexArray) \
-    GLARB(ACTIVETEXTURE,            ActiveTexture) \
-    GLE  (BLENDEQUATION,            BlendEquation) \
-    GLARB(ENABLEVERTEXATTRIBARRAY,  EnableVertexAttribArray) \
-    GLARB(DISABLEVERTEXATTRIBARRAY, DisableVertexAttribArray) \
-    GLARB(VERTEXATTRIBPOINTER,      VertexAttribPointer) \
-    \
-    GLARB(ATTACHOBJECT,             AttachObject) \
-    GLARB(BINDATTRIBLOCATION,       BindAttribLocation) \
-    GLARB(COMPILESHADER,            CompileShader) \
-    GLARB(CREATEPROGRAMOBJECT,      CreateProgramObject) \
-    GLARB(CREATESHADEROBJECT,       CreateShaderObject) \
-    GLARB(DELETEOBJECT,             DeleteObject) \
-    GLARB(DETACHOBJECT,             DetachObject) \
-    GLARB(GETINFOLOG,               GetInfoLog) \
-    GLARB(GETOBJECTPARAMETERIV,     GetObjectParameteriv) \
-    GLARB(LINKPROGRAM,              LinkProgram) \
-    GLARB(USEPROGRAMOBJECT,         UseProgramObject) \
-    GLARB(SHADERSOURCE,             ShaderSource) \
-    GLARB(GETATTRIBLOCATION,        GetAttribLocation) \
-    GLARB(GETUNIFORMLOCATION,       GetUniformLocation) \
-    GLARB(UNIFORM1I,                Uniform1i) \
-    GLARB(UNIFORM1F,                Uniform1f) \
-    GLARB(UNIFORMMATRIX4FV,         UniformMatrix4fv) \
-    GLARB(UNIFORM4FV,               Uniform4fv)
-
-#define GLARB(a, b) GLE(a##ARB, b##ARB)
-#define GLEXT(a, b) GLE(a##EXT, b##EXT)
-
-#define GLE(a, b) static PFNGL##a##PROC gl##b;
-GL_EXTENSIONS_LIST
-#undef GLE
-
-inline void opengl_init_extensions()
+struct OpenGL
 {
-    #define GLE(a, b) gl##b = (PFNGL##a##PROC)GL_GET_FUNC("gl" #b);
-    GL_EXTENSIONS_LIST
-    #undef GLE
+    #define GLCORE(a, b) PFNGL##a##PROC b;
+    GL_FUNCTION_LIST_1_1
+    GL_FUNCITON_LIST
+    #undef GLCORE
+};
+
+extern OpenGL gl;
+
+inline void opengl_init_extensions(OpenGL *open_gl)
+{
+    HMODULE module = LoadLibraryA("opengl32.dll");
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)GetProcAddress(module, "gl" #b); 
+    GL_FUNCTION_LIST_1_1
+    #undef GLCORE
+
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)GL_GET_FUNC("gl" #b); 
+    GL_FUNCITON_LIST
+    #undef GLCORE
 }
 
 static GLuint opengl_compile_shader(char const *source, GLenum type, char *error, u32 error_length)
 {
-    GLuint handle = glCreateShaderObjectARB(type);
-    glShaderSourceARB(handle, 1, &source, 0);
-    glCompileShaderARB(handle);
+    GLuint handle = gl.CreateShader(type);
+    gl.ShaderSource(handle, 1, &source, 0);
+    gl.CompileShader(handle);
 
     GLint status;
-    glGetObjectParameterivARB(handle, GL_OBJECT_COMPILE_STATUS_ARB, &status);
+    gl.GetShaderiv(handle, GL_COMPILE_STATUS, &status);
 
     if (!status)
     {
-        glGetInfoLogARB(handle, error_length, 0, error);
+        gl.GetShaderInfoLog(handle, error_length, 0, error);
         assert_always();
     }
 
@@ -166,29 +184,29 @@ static GLuint opengl_compile_shader(char const *source, GLenum type, char *error
 
 static GLuint opengl_create_program(char *vertex_source, char *fragment_source, char *error, u32 error_length)
 {
-    GLuint handle = glCreateProgramObjectARB();
+    GLuint handle = gl.CreateProgram();
 
     if (vertex_source)
     {
-        GLuint vertex_shader = opengl_compile_shader(vertex_source, GL_VERTEX_SHADER_ARB, error, error_length);
-        glAttachObjectARB(handle, vertex_shader);
-        glDeleteObjectARB(vertex_shader);
+        GLuint vertex_shader = opengl_compile_shader(vertex_source, GL_VERTEX_SHADER, error, error_length);
+        gl.AttachShader(handle, vertex_shader);
+        gl.DeleteShader(vertex_shader);
     }
     if (fragment_source)
     {
-        GLuint fragment_shader = opengl_compile_shader(fragment_source, GL_FRAGMENT_SHADER_ARB, error, error_length);
-        glAttachObjectARB(handle, fragment_shader);
-        glDeleteObjectARB(fragment_shader);
+        GLuint fragment_shader = opengl_compile_shader(fragment_source, GL_FRAGMENT_SHADER, error, error_length);
+        gl.AttachShader(handle, fragment_shader);
+        gl.DeleteShader(fragment_shader);
     }
 
-    glLinkProgramARB(handle);
+    gl.LinkProgram(handle);
 
     GLint status;
-    glGetObjectParameterivARB(handle, GL_OBJECT_LINK_STATUS_ARB, &status);
+    gl.GetProgramiv(handle, GL_LINK_STATUS, &status);
 
     if (!status)
     {
-        glGetInfoLogARB(handle, error_length, 0, error);
+        gl.GetProgramInfoLog(handle, error_length, 0, error);
         assert_always();
     }
 

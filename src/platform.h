@@ -85,11 +85,16 @@ typedef char test_size_u64[sizeof(u64) == 8 ? 1 : -1];
 typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 
 #if INTERNAL_BUILD
-    #define assert(e) if (!(e)) { *(i32 *)0 = 0; }
+    #if COMPILER == COMPILER_MSVC
+        // TODO(dan): message box?
+        #define assert(e) if (!(e)) { __debugbreak(); }
+    #else
+        #define assert(e) if (!(e)) { *(i32 *)0 = 0; }
+    #endif
 #else
     #define assert(e)
 #endif
-#define assert_always(...)      assert(!"Invalid codepath! "## __VA_ARGS__)
+#define assert_always(...)      assert(!"Invalid codepath! "__VA_ARGS__)
 #define invalid_default_case    default: { assert_always(); } break
 
 #define array_count(a)              (sizeof(a) / sizeof((a)[0]))
@@ -159,6 +164,7 @@ struct PlatformButtonState
 struct PlatformInput
 {
     f32 dt;
+    b32 quit_requested;
 
     f32 mouse_x;
     f32 mouse_y;
@@ -197,12 +203,12 @@ struct PlatformMemoryStats
     usize total_used;
 };
 
-#define PLATFORM_ALLOCATE_PROC(name)    PlatformMemoryBlock *name(usize size)
-#define PLATFORM_DEALLOCATE_PROC(name)  void name(PlatformMemoryBlock *memblock)
+#define PLATFORM_ALLOCATE(name)    PlatformMemoryBlock *name(usize size)
+#define PLATFORM_DEALLOCATE(name)  void name(PlatformMemoryBlock *memblock)
 #define PLATFORM_GET_MEMORY_STATS(name) PlatformMemoryStats name()
 
-typedef PLATFORM_ALLOCATE_PROC(PlatformAllocate);
-typedef PLATFORM_DEALLOCATE_PROC(PlatformDeallocate);
+typedef PLATFORM_ALLOCATE(PlatformAllocate);
+typedef PLATFORM_DEALLOCATE(PlatformDeallocate);
 typedef PLATFORM_GET_MEMORY_STATS(PlatformGetMemoryStats);
 
 struct Platform
@@ -386,3 +392,5 @@ inline void check_memory_stack(MemoryStack *memstack)
     assert(memstack->temp_stacks == 0);
 }
 
+#define UPDATE_AND_RENDER(name) void name(AppMemory *memory, PlatformInput *input, i32 window_width, i32 window_height)
+typedef UPDATE_AND_RENDER(UpdateAndRender);
