@@ -1,7 +1,6 @@
 #include "platform.h"
+#include "opengl.h"
 #include "win32_talkien.h"
-
-#include "talkien.cpp"
 
 static Win32State global_state;
 
@@ -53,7 +52,6 @@ static b32 win32_init_opengl_extensions()
         if (wglMakeCurrent(dummy.dc, dummy.rc))
         {
             wgl_init_extensions();
-            opengl_init_extensions(&gl);
 
             result = wglMakeCurrent(0, 0);
         }
@@ -395,12 +393,103 @@ static PLATFORM_GET_MEMORY_STATS(win32_get_memory_stats)
     return result;
 }
 
+static PLATFORM_INIT_OPENGL(win32_init_opengl)
+{
+    HMODULE module = LoadLibraryA("opengl32.dll");
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)GetProcAddress(module, "gl" #b); 
+    GL_FUNCTION_LIST_1_1
+    #undef GLCORE
+
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)wglGetProcAddress("gl" #b); 
+    GL_FUNCITON_LIST
+    #undef GLCORE
+}
+
+
+static void win32_build_filename(char *pathname, u32 pathname_size,
+                                 char *filename, u32 filename_size, 
+                                 char *out, u32 max_out_size)
+{
+    if ((pathname_size + filename_size + 1) < max_out_size)
+    {
+        u32 out_index = 0;
+        for (u32 char_index = 0; char_index < pathname_size; ++char_index)
+        {
+            out[out_index++] = pathname[char_index];
+        }
+        for (u32 char_index = 0; char_index < filename_size; ++char_index)
+        {
+            out[out_index++] = filename[char_index];
+        }
+        out[out_index] = '\0';
+    }
+}
+
+static void win32_init_exe_path(Win32State *state)
+{
+    state->exe_filename_length = GetModuleFileNameA(0, state->exe_filename, sizeof(state->exe_filename));
+    state->exe_path_length = state->exe_filename_length;
+
+    for (u32 char_index = state->exe_path_length - 1; char_index > 0; --char_index)
+    {
+        if (*(state->exe_filename + char_index) == '\\')
+        {
+            state->exe_path_length = char_index + 1;
+            break;
+        }
+    }
+
+    char app_dll_filename[] = "talkien.dll";
+    win32_build_filename(state->exe_filename, state->exe_path_length,
+                         app_dll_filename, array_count(app_dll_filename),
+                         state->app_dll_filename, MAX_FILENAME_SIZE);
+
+    char app_dll_lock_filename[] = "talkien.lock.dll";
+    win32_build_filename(state->exe_filename, state->exe_path_length,
+                         app_dll_lock_filename, array_count(app_dll_lock_filename),
+                         state->app_dll_lock_filename, MAX_FILENAME_SIZE);
+
+    char app_temp_dll_filename[] = "talkien.temp.dll";
+    win32_build_filename(state->exe_filename, state->exe_path_length,
+                         app_temp_dll_filename, array_count(app_temp_dll_filename),
+                         state->app_temp_dll_filename, MAX_FILENAME_SIZE);
+}
+
+static void win32_load_app_dll(Win32State *state)
+{
+    WIN32_FILE_ATTRIBUTE_DATA attr;
+    if (!GetFileAttributesEx(state->app_dll_lock_filename, GetFileExInfoStandard, &attr))
+    {
+        state->app_dll_last_write = {};
+        if (GetFileAttributesEx(state->app_dll_filename, GetFileExInfoStandard, &attr))
+        {
+            state->app_dll_last_write = attr.ftLastWriteTime;
+        }
+
+        CopyFileA(state->app_dll_filename, state->app_temp_dll_filename, 0);
+
+        state->app_dll = LoadLibraryA(state->app_temp_dll_filename);
+        if (state->app_dll)
+        {
+            state->update_and_render = (UpdateAndRender *)GetProcAddress(state->app_dll, "update_and_render");
+            state->app_dll_valid = (state->update_and_render != 0);
+        }
+    }
+
+    if (!state->app_dll_valid)
+    {
+        state->update_and_render = update_and_render_stub;
+    }
+}
+
 i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd_show)
 {
     Win32State *state = &global_state;
     state->memory_sentinel.prev = &state->memory_sentinel;
     state->memory_sentinel.next = &state->memory_sentinel;
     state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
+
+    win32_init_exe_path(state);
 
     if (state->window.initialized)
     {
@@ -412,12 +501,15 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
         app_memory.platform.allocate = win32_allocate;
         app_memory.platform.deallocate = win32_deallocate;
         app_memory.platform.get_memory_stats = win32_get_memory_stats;
+        app_memory.platform.init_opengl = win32_init_opengl;
 
         if (wglSwapIntervalEXT)
         {
             wglSwapIntervalEXT(1);
         }
         
+        win32_load_app_dll(state);
+
         f32 t0 = win32_get_time();
         f32 dt = 0;
 
@@ -426,7 +518,7 @@ i32 WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, i32 cmd
         {
             win32_update_input(input, prev_input, dt);
             
-            update_and_render(&app_memory, input, state->window.width, state->window.height);
+            state->update_and_render(&app_memory, input, state->window.width, state->window.height);
 
             if (input->quit_requested)
             {

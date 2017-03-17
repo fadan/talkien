@@ -1,3 +1,5 @@
+#include "platform.h"
+#include "opengl.h"
 #include "ui.cpp"
 
 struct AppState
@@ -8,7 +10,7 @@ struct AppState
 Platform platform;
 OpenGL gl;
 
-extern "C" UPDATE_AND_RENDER(update_and_render)
+extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 {
     platform = memory->platform;
 
@@ -16,6 +18,7 @@ extern "C" UPDATE_AND_RENDER(update_and_render)
     if (!app_state)
     {
         app_state = memory->app_state = bootstrap_push_struct(AppState, total_memory);
+        platform.init_opengl(&gl);
         init_ui();
     }
 

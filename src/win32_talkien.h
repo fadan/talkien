@@ -1,6 +1,6 @@
 // TODO(dan): replace windows.h
 #define WIN32_LEAN_AND_MEAN
-#define INITGUID
+// #define INITGUID
 #include "windows.h"
 
 #define WGL_DRAW_TO_WINDOW_ARB      0x2001
@@ -27,8 +27,6 @@
 #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB            0x00000001
 #define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB   0x00000002
 
-#define GL_GET_FUNC(func) wglGetProcAddress(func)
-
 typedef HGLRC (__stdcall * PFNWGLCREATECONTEXTATTRIBSARBPROC)   (HDC, HGLRC, int *);
 typedef int   (__stdcall * PFNWGLCHOOSEPIXELFORMATARBPROC)      (HDC, int *, float *, uint , int *, uint *);
 typedef int   (__stdcall * PFNWGLSWAPINTERVALEXTPROC)           (int);
@@ -47,12 +45,10 @@ WGL_EXTENSIONS_LIST
 
 inline void wgl_init_extensions()
 {
-    #define WGLE(a, b) wgl##b = (PFNWGL##a##PROC)GL_GET_FUNC("wgl" #b);
+    #define WGLE(a, b) wgl##b = (PFNWGL##a##PROC)wglGetProcAddress("wgl" #b);
     WGL_EXTENSIONS_LIST
     #undef WGLE
 }
-
-#include "opengl.h"
 
 struct Win32Window
 {
@@ -72,6 +68,8 @@ struct Win32MemoryBlock
     u64 flags;
 };
 
+#define MAX_FILENAME_SIZE 260
+
 struct Win32State
 {
     b32 running;
@@ -79,5 +77,16 @@ struct Win32State
 
     Mutex memory_mutex;
     Win32MemoryBlock memory_sentinel;
-};
 
+    u32 exe_filename_length;
+    u32 exe_path_length;
+    char exe_filename[MAX_FILENAME_SIZE];
+    char app_dll_filename[MAX_FILENAME_SIZE];
+    char app_dll_lock_filename[MAX_FILENAME_SIZE];
+    char app_temp_dll_filename[MAX_FILENAME_SIZE];
+
+    b32 app_dll_valid;
+    HMODULE app_dll;
+    FILETIME app_dll_last_write;
+    UpdateAndRender *update_and_render;
+};

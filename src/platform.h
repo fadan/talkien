@@ -206,16 +206,19 @@ struct PlatformMemoryStats
 #define PLATFORM_ALLOCATE(name)    PlatformMemoryBlock *name(usize size)
 #define PLATFORM_DEALLOCATE(name)  void name(PlatformMemoryBlock *memblock)
 #define PLATFORM_GET_MEMORY_STATS(name) PlatformMemoryStats name()
+#define PLATFORM_INIT_OPENGL(name) void name(struct OpenGL *open_gl)
 
 typedef PLATFORM_ALLOCATE(PlatformAllocate);
 typedef PLATFORM_DEALLOCATE(PlatformDeallocate);
 typedef PLATFORM_GET_MEMORY_STATS(PlatformGetMemoryStats);
+typedef PLATFORM_INIT_OPENGL(PlatformInitOpenGL);
 
 struct Platform
 {
     PlatformAllocate *allocate;
     PlatformDeallocate *deallocate;
     PlatformGetMemoryStats *get_memory_stats;
+    PlatformInitOpenGL *init_opengl;
 };
 
 extern Platform platform;
@@ -394,3 +397,6 @@ inline void check_memory_stack(MemoryStack *memstack)
 
 #define UPDATE_AND_RENDER(name) void name(AppMemory *memory, PlatformInput *input, i32 window_width, i32 window_height)
 typedef UPDATE_AND_RENDER(UpdateAndRender);
+static UPDATE_AND_RENDER(update_and_render_stub)
+{
+}

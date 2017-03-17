@@ -56,6 +56,12 @@ set linkflags=-nologo -incremental:no -opt:ref
 :: Build
 ::
 
-cl %cplflags% %projdir%\src\win32_talkien.cpp -link %linkflags% user32.lib opengl32.lib gdi32.lib wsock32.lib
+echo "waiting for msvc to finish writing to the pdb file..." > talkien.lock.dll
+
+cl %cplflags% %projdir%\src\talkien.cpp -LD -link %linkflags% -PDB:talkien_%random%.pdb 
+
+del talkien.lock.dll
+
+cl %cplflags% %projdir%\src\win32_talkien.cpp -link %linkflags% user32.lib opengl32.lib gdi32.lib
 
 popd

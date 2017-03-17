@@ -152,18 +152,6 @@ struct OpenGL
 
 extern OpenGL gl;
 
-inline void opengl_init_extensions(OpenGL *open_gl)
-{
-    HMODULE module = LoadLibraryA("opengl32.dll");
-    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)GetProcAddress(module, "gl" #b); 
-    GL_FUNCTION_LIST_1_1
-    #undef GLCORE
-
-    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)GL_GET_FUNC("gl" #b); 
-    GL_FUNCITON_LIST
-    #undef GLCORE
-}
-
 static GLuint opengl_compile_shader(char const *source, GLenum type, char *error, u32 error_length)
 {
     GLuint handle = gl.CreateShader(type);
