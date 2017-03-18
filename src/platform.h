@@ -109,8 +109,9 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #define TB  (1024LL * GB)
 
 #if COMPILER == COMPILER_MSVC
-    #include <intrin.h>
-   
+    extern "C" __int64 _InterlockedExchangeAdd64(__int64 volatile *addend, __int64 value);
+    extern "C" void _mm_pause();
+
     inline u64 atomic_add_u64(u64 volatile *value, u64 addend)
     {
         // NOTE(dan): result = current value without addend
@@ -226,6 +227,7 @@ extern Platform platform;
 struct AppMemory
 {
     struct AppState *app_state;
+    b32 app_dll_reloaded;
 
     Platform platform;
 };

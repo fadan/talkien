@@ -16,7 +16,7 @@ static void *win32_open_window(char *title, i32 width, i32 height, Win32Api_WNDP
     window_class.cbSize        = sizeof(window_class);
     window_class.style         = 0x0020 /* CS_OWNDC */;
     window_class.lpfnWndProc   = wndproc;
-    window_class.hInstance     = GetModuleHandleA(0);
+    window_class.hInstance     = win32_api->GetModuleHandleA(0);
     window_class.hCursor       = win32_api->LoadCursorA(0, ((char *)((uintptr)((short)(32512)))) /* IDC_ARROW */);
     window_class.lpszClassName = title;
 
@@ -60,7 +60,6 @@ static b32 win32_init_opengl_extensions()
         dummy.rc = win32_api->wglCreateContext(dummy.dc);
         if (win32_api->wglMakeCurrent(dummy.dc, dummy.rc))
         {
-            // wgl_init_extensions();
             win32_api->wglChoosePixelFormatARB = (Win32Api_wglChoosePixelFormatARB)win32_api->wglGetProcAddress("wglChoosePixelFormatARB");
             win32_api->wglCreateContextAttribsARB = (Win32Api_wglCreateContextAttribsARB)win32_api->wglGetProcAddress("wglCreateContextAttribsARB");
             win32_api->wglSwapIntervalEXT = (Win32Api_wglSwapIntervalEXT)win32_api->wglGetProcAddress("wglSwapIntervalEXT");
@@ -165,13 +164,13 @@ inline f32 win32_get_time()
 
     if (!start)
     {
-        QueryPerformanceCounter((Win32Api_LARGE_INTEGER *)&start);
-        QueryPerformanceFrequency((Win32Api_LARGE_INTEGER *)&freq);
+        win32_api->QueryPerformanceCounter((Win32Api_LARGE_INTEGER *)&start);
+        win32_api->QueryPerformanceFrequency((Win32Api_LARGE_INTEGER *)&freq);
     }
     else
     {
         i64 counter = 0;
-        QueryPerformanceCounter((Win32Api_LARGE_INTEGER *)&counter);
+        win32_api->QueryPerformanceCounter((Win32Api_LARGE_INTEGER *)&counter);
         t = (f32)((counter - start) / (f64)freq);
     }
 
@@ -349,7 +348,7 @@ static PLATFORM_ALLOCATE(win32_allocate)
     usize total_size = size + sizeof(Win32MemoryBlock);
     usize base_offset = sizeof(Win32MemoryBlock);
 
-    Win32MemoryBlock *block = (Win32MemoryBlock *)VirtualAlloc(0, total_size, 0x2000 /* MEM_RESERVE */ | 0x1000 /* MEM_COMMIT */, 0x04 /* PAGE_READWRITE */);
+    Win32MemoryBlock *block = (Win32MemoryBlock *)win32_api->VirtualAlloc(0, total_size, 0x2000 /* MEM_RESERVE */ | 0x1000 /* MEM_COMMIT */, 0x04 /* PAGE_READWRITE */);
     assert(block);
 
     block->memblock.base = (u8 *)block + base_offset;
@@ -381,7 +380,7 @@ static PLATFORM_DEALLOCATE(win32_deallocate)
         block->next->prev = block->prev;
         end_mutex(&win32_state->memory_mutex);
 
-        b32 result = VirtualFree(block, 0, 0x8000 /* MEM_RELEASE */);
+        b32 result = win32_api->VirtualFree(block, 0, 0x8000 /* MEM_RELEASE */);
         assert(result);
     }
 }
@@ -406,8 +405,8 @@ static PLATFORM_GET_MEMORY_STATS(win32_get_memory_stats)
 
 static PLATFORM_INIT_OPENGL(win32_init_opengl)
 {
-    void *module = LoadLibraryA("opengl32.dll");
-    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)GetProcAddress(module, "gl" #b); 
+    void *module = win32_load_library("opengl32.dll");
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)win32_get_proc_address(module, "gl" #b); 
     GL_FUNCTION_LIST_1_1
     #undef GLCORE
 
@@ -437,7 +436,7 @@ static void win32_build_filename(char *pathname, u32 pathname_size,
 
 static void win32_init_exe_path(Win32State *state)
 {
-    state->exe_filename_length = GetModuleFileNameA(0, state->exe_filename, sizeof(state->exe_filename));
+    state->exe_filename_length = win32_api->GetModuleFileNameA(0, state->exe_filename, sizeof(state->exe_filename));
     state->exe_path_length = state->exe_filename_length;
 
     for (u32 char_index = state->exe_path_length - 1; char_index > 0; --char_index)
@@ -468,35 +467,63 @@ static void win32_init_exe_path(Win32State *state)
 static void win32_load_app_dll(Win32State *state)
 {
     Win32Api_WIN32_FILE_ATTRIBUTE_DATA attr;
-    if (!GetFileAttributesExA(state->app_dll_lock_filename, Win32Api_GetFileExInfoStandard, &attr))
+    if (!win32_api->GetFileAttributesExA(state->app_dll_lock_filename, Win32Api_GetFileExInfoStandard, &attr))
     {
         state->app_dll_last_write = {};
-        if (GetFileAttributesExA(state->app_dll_filename, Win32Api_GetFileExInfoStandard, &attr))
+        if (win32_api->GetFileAttributesExA(state->app_dll_filename, Win32Api_GetFileExInfoStandard, &attr))
         {
             state->app_dll_last_write = attr.ftLastWriteTime;
         }
 
-        CopyFileA(state->app_dll_filename, state->app_temp_dll_filename, 0);
+        win32_api->CopyFileA(state->app_dll_filename, state->app_temp_dll_filename, 0);
 
-        state->app_dll = LoadLibraryA(state->app_temp_dll_filename);
+        state->app_dll = win32_load_library(state->app_temp_dll_filename);
         if (state->app_dll)
         {
-            state->update_and_render = (UpdateAndRender *)GetProcAddress(state->app_dll, "update_and_render");
-            state->app_dll_valid = (state->update_and_render != 0);
+            state->update_and_render = (UpdateAndRender *)win32_get_proc_address(state->app_dll, "update_and_render");
         }
     }
 
-    if (!state->app_dll_valid)
+    if (!state->update_and_render)
     {
         state->update_and_render = update_and_render_stub;
     }
 }
 
-int __stdcall WinMain()
+static void win32_unload_app_dll(Win32State *state)
 {
+    if (state->app_dll)
+    {
+        win32_free_library(state->app_dll);
+        state->app_dll = 0;
+    }
+
+    state->update_and_render = update_and_render_stub;
+}
+
+static void win32_reload_app_dll_if_needed(Win32State *state)
+{
+    state->app_dll_reloaded = false;
+
+    Win32Api_WIN32_FILE_ATTRIBUTE_DATA attr;
+    if (win32_api->GetFileAttributesExA(state->app_dll_filename, Win32Api_GetFileExInfoStandard, &attr))
+    {
+        if (win32_api->CompareFileTime(&attr.ftLastWriteTime, &state->app_dll_last_write) != 0)
+        {
+            win32_unload_app_dll(state);
+            win32_load_app_dll(state);
+
+            state->app_memory.app_dll_reloaded = true;
+        }
+    }
+}
+
+int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, int cmd_show)
+{
+    Win32State *state = win32_state;
+
     win32_init_win32_api(win32_api);
 
-    Win32State *state = win32_state;
     state->memory_sentinel.prev = &state->memory_sentinel;
     state->memory_sentinel.next = &state->memory_sentinel;
     state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
@@ -509,11 +536,11 @@ int __stdcall WinMain()
         PlatformInput *input = &inputs[0];
         PlatformInput *prev_input = &inputs[1];
 
-        AppMemory app_memory = {0}; 
-        app_memory.platform.allocate = win32_allocate;
-        app_memory.platform.deallocate = win32_deallocate;
-        app_memory.platform.get_memory_stats = win32_get_memory_stats;
-        app_memory.platform.init_opengl = win32_init_opengl;
+        AppMemory *app_memory = &win32_state->app_memory;
+        app_memory->platform.allocate = win32_allocate;
+        app_memory->platform.deallocate = win32_deallocate;
+        app_memory->platform.get_memory_stats = win32_get_memory_stats;
+        app_memory->platform.init_opengl = win32_init_opengl;
 
         if (win32_api->wglSwapIntervalEXT)
         {
@@ -530,7 +557,9 @@ int __stdcall WinMain()
         {
             win32_update_input(input, prev_input, dt);
             
-            state->update_and_render(&app_memory, input, state->window.width, state->window.height);
+            state->update_and_render(app_memory, input, state->window.width, state->window.height);
+
+            win32_reload_app_dll_if_needed(win32_state);
 
             if (input->quit_requested)
             {

@@ -22,6 +22,12 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         init_ui();
     }
 
+    if (memory->app_dll_reloaded)
+    {
+        platform.init_opengl(&gl);
+        init_ui();
+    }
+
     ImVec4 clear_color = ImColor(49, 55, 66);
     gl.Enable(GL_SCISSOR_TEST);
     gl.Enable(GL_BLEND);

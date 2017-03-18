@@ -1,6 +1,27 @@
-
 typedef intptr (__stdcall *Win32Api_WNDPROC)(void *wnd, unsigned int msg, uintptr wparam, intptr lparam);
 typedef intptr (__stdcall *Win32Api_PROC)();
+
+typedef Win32Api_PROC (__stdcall Win32GetProcAddress)(void *module, char *proc);
+typedef void * (__stdcall Win32LoadLibrary)(char *lib);
+typedef void * (__stdcall Win32Api_FreeLibrary)(void *module);
+
+#if 1
+    extern "C" __declspec(dllimport) Win32Api_PROC __stdcall GetProcAddress(void *module, char *proc);
+    extern "C" __declspec(dllimport) void * __stdcall LoadLibraryA(char *lib);
+    extern "C" __declspec(dllimport) int __stdcall FreeLibrary(void *module); 
+
+    #define win32_get_proc_address GetProcAddress
+    #define win32_load_library LoadLibraryA
+    #define win32_free_library FreeLibrary
+
+    typedef void *HINSTANCE;
+#else
+    #include <windows.h>
+
+    static Win32GetProcAddress *win32_get_proc_address = (Win32GetProcAddress *)GetProcAddress;
+    static Win32LoadLibrary *win32_load_library = (Win32LoadLibrary *)LoadLibraryA;
+    static Win32Api_FreeLibrary *win32_free_library = (Win32Api_FreeLibrary *)FreeLibrary;
+#endif
 
 typedef void * (__stdcall *Win32Api_wglCreateContextAttribsARB)(void *dc, void *rc, int *attribs);
 typedef int (__stdcall * Win32Api_wglChoosePixelFormatARB)(void *, int *, float *, unsigned int, int *, unsigned int *);
@@ -113,18 +134,17 @@ struct Win32Api_WIN32_FILE_ATTRIBUTE_DATA
     unsigned int nFileSizeLow;
 };
 
-extern "C" __declspec(dllimport) int CopyFileA(char *filename, char *new_filename, int fail_if_exists);
-extern "C" __declspec(dllimport) int __stdcall GetFileAttributesExA(char *filename, Win32Api_GET_FILEEX_INFO_LEVELS info_level_id, void *file_info);
-extern "C" __declspec(dllimport) unsigned int __stdcall GetModuleFileNameA(void *module, char *filename, unsigned int size);
-extern "C" __declspec(dllimport) void * __stdcall GetModuleHandleA(char *module);
-extern "C" __declspec(dllimport) Win32Api_PROC __stdcall GetProcAddress(void *module, char *proc);
-extern "C" __declspec(dllimport) void * __stdcall LoadLibraryA(char *lib);
-extern "C" __declspec(dllimport) int __stdcall QueryPerformanceCounter(Win32Api_LARGE_INTEGER *perf_count);
-extern "C" __declspec(dllimport) int __stdcall QueryPerformanceFrequency(Win32Api_LARGE_INTEGER *freq);
-extern "C" __declspec(dllimport) void * __stdcall VirtualAlloc(void *addr, usize size, unsigned int alloc_type, unsigned int protect);
-extern "C" __declspec(dllimport) int __stdcall VirtualFree(void *addr, usize size, usize free_type);
-
 #define WIN32_API_FUNCTION_LIST \
+    WIN32_API(kernel32, CompareFileTime, int __stdcall, (Win32Api_FILETIME *filetime1, Win32Api_FILETIME *filetime2)) \
+    WIN32_API(kernel32, CopyFileA, int __stdcall, (char *filename, char *new_filename, int fail_if_exists)) \
+    WIN32_API(kernel32, GetFileAttributesExA, int __stdcall, (char *filename, Win32Api_GET_FILEEX_INFO_LEVELS info_level_id, void *file_info)) \
+    WIN32_API(kernel32, GetModuleFileNameA, unsigned int __stdcall, (void *module, char *filename, unsigned int size)) \
+    WIN32_API(kernel32, GetModuleHandleA, void * __stdcall, (char *module)) \
+    WIN32_API(kernel32, QueryPerformanceCounter, int __stdcall, (Win32Api_LARGE_INTEGER *perf_count)) \
+    WIN32_API(kernel32, QueryPerformanceFrequency, int __stdcall, (Win32Api_LARGE_INTEGER *freq)) \
+    WIN32_API(kernel32, VirtualAlloc, void * __stdcall, (void *addr, usize size, unsigned int alloc_type, unsigned int protect)) \
+    WIN32_API(kernel32, VirtualFree, int __stdcall, (void *addr, usize size, usize free_type)) \
+    \
     WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
     WIN32_API(gdi32, DescribePixelFormat, int __stdcall, (void *dc, int pixel_format, unsigned int bytes, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
     WIN32_API(gdi32, SetPixelFormat, int __stdcall, (void *dc, int format, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
@@ -167,11 +187,12 @@ struct Win32Api
 
 static void win32_init_win32_api(Win32Api *win32_api)
 {
-    void *user32 = LoadLibraryA("user32.dll");
-    void *gdi32 = LoadLibraryA("gdi32.dll");
-    void *opengl32 = LoadLibraryA("opengl32.dll");
+    void *user32 = win32_load_library("user32.dll");
+    void *gdi32 = win32_load_library("gdi32.dll");
+    void *opengl32 = win32_load_library("opengl32.dll");
+    void *kernel32 = win32_load_library("kernel32.dll");
     
-    #define WIN32_API(dll, name, return_type, params) win32_api->name = (Win32Api_##name *)GetProcAddress(dll, #name);
+    #define WIN32_API(dll, name, return_type, params) win32_api->name = (Win32Api_##name *)win32_get_proc_address(dll, #name);
     WIN32_API_FUNCTION_LIST
     #undef WIN32_API
 }
@@ -201,6 +222,9 @@ struct Win32State
     b32 running;
     Win32Window window;
 
+    AppMemory app_memory;
+
+
     Mutex memory_mutex;
     Win32MemoryBlock memory_sentinel;
 
@@ -211,8 +235,8 @@ struct Win32State
     char app_dll_lock_filename[MAX_FILENAME_SIZE];
     char app_temp_dll_filename[MAX_FILENAME_SIZE];
 
-    b32 app_dll_valid;
     void *app_dll;
+    b32 app_dll_reloaded;
     Win32Api_FILETIME app_dll_last_write;
     UpdateAndRender *update_and_render;
 };
