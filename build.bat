@@ -19,7 +19,7 @@ set cplflags=-DINTERNAL_BUILD=1
 set cplflags=%cplflags% -Oi -Od
 
 :: Preprocessor output
-::set cplflags=%cplflags% -P
+rem set cplflags=%cplflags% -P
 
 :: Code gen flags
 :: -fp:fast : fast floating-point behavior
@@ -56,12 +56,13 @@ set linkflags=-nologo -incremental:no -opt:ref
 :: Build
 ::
 
+del *.pdb > NUL 2> NUL
 echo "waiting for msvc to finish writing to the pdb file..." > talkien.lock.dll
 
 cl %cplflags% %projdir%\src\talkien.cpp -LD -link %linkflags% -PDB:talkien_%random%.pdb 
 
 del talkien.lock.dll
 
-cl %cplflags% %projdir%\src\win32_talkien.cpp -link %linkflags% user32.lib opengl32.lib gdi32.lib
+cl %cplflags% %projdir%\src\win32_talkien.cpp -link %linkflags%
 
 popd
