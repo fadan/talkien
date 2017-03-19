@@ -162,8 +162,21 @@ struct PlatformButtonState
     b32 is_down;
 };
 
+struct PlatformButton
+{
+    b32 down;
+    b32 pressed;
+    b32 released;
+};
+
 struct PlatformInput
 {
+    i32 wheel;
+    i32 delta_wheel;
+    int mouse_pos[2];
+    int delta_mouse_pos[2];
+    PlatformButton mouse[mouse_button_count];
+
     f32 dt;
     b32 quit_requested;
 

@@ -69,6 +69,9 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             ImGui::Text("Frame time: %.2f ms/f ", 1000.0f / global_imgui->Framerate);
         }
         ImGui::End();
+
+        bool show = true;
+        ShowExampleAppConsole(&show);
     }
     end_ui();
 }

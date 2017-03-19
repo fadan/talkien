@@ -222,6 +222,14 @@ static void win32_process_button(PlatformButtonState *state, b32 is_down)
     }
 }
 
+static void win32_update_button(PlatformButton *button, b32 down)
+{
+    b32 was_down = button->down;
+    button->down = down;
+    button->pressed = !was_down && down;
+    button->released = was_down && !down;
+}
+
 static void win32_process_messages(PlatformInput *input, PlatformInput *prev_input)
 {
     Win32Api_MSG msg;
@@ -235,13 +243,59 @@ static void win32_process_messages(PlatformInput *input, PlatformInput *prev_inp
                 win32_state->running = false;
             } break;
 
+            case 0x00FF /* WM_INPUT */:
+            {
+                unsigned int size;
+                win32_api->GetRawInputData((void *)msg.lParam, 0x10000003 /* RID_INPUT */, 0, &size, sizeof(Win32Api_RAWINPUTHEADER));
+
+                Win32Api_RAWINPUT raw_input[4096];
+                if (win32_api->GetRawInputData((void *)msg.lParam, 0x10000003 /* RID_INPUT */, raw_input, &size, sizeof(Win32Api_RAWINPUTHEADER)) == size)
+                {
+                    if (raw_input->header.dwType == 0 /* RIM_TYPEMOUSE */ && raw_input->data.mouse.usFlags == 0 /* MOUSE_MOVE_RELATIVE */)
+                    {
+                        input->delta_mouse_pos[0] += raw_input->data.mouse.lLastX;
+                        input->delta_mouse_pos[1] += raw_input->data.mouse.lLastY;
+
+                        unsigned short button_flags = raw_input->data.mouse.usButtonFlags;
+
+                        int left_button_down = input->mouse[mouse_button_left].down;
+                        if (button_flags & 0x0001 /* RI_MOUSE_LEFT_BUTTON_DOWN */) left_button_down = true;
+                        if (button_flags & 0x0002 /* RI_MOUSE_LEFT_BUTTON_UP */)   left_button_down = false;
+                        win32_update_button(&input->mouse[mouse_button_left], left_button_down);
+
+                        int right_button_down = input->mouse[mouse_button_right].down;
+                        if (button_flags & 0x0004 /* RI_MOUSE_RIGHT_BUTTON_DOWN */) right_button_down = true;
+                        if (button_flags & 0x0008 /* RI_MOUSE_RIGHT_BUTTON_UP */)   right_button_down = false;
+                        win32_update_button(&input->mouse[mouse_button_right], right_button_down);
+
+                        // TODO(dan): middle, xbutton1, xbutton2
+
+                        if (button_flags & 0x0400 /* RI_MOUSE_WHEEL */)
+                        {
+                            input->delta_wheel += ((short)raw_input->data.mouse.usButtonData) / 120 /* WHEEL_DELTA */;
+                        }
+                    }
+                }
+            } break;
+
             case 0x0102 /* WM_CHAR */:
             {
-                assert(input->character_count < array_count(input->characters));
-                if (input->character_count < array_count(input->characters))
+                wchar_t utf16_character = (wchar_t)msg.wParam;
+                char ascii_character;
+                unsigned int ascii_length = win32_api->WideCharToMultiByte(0 /* CP_ACP */, 0, &utf16_character, 1, &ascii_character, 1, 0, 0);
+
+                if (ascii_length == 1 && ((input->character_count + 1) < (sizeof(input->characters) - 1)))
                 {
-                    input->characters[input->character_count++] = (char)msg.wParam;
+                    input->characters[input->character_count] = ascii_character;
+                    input->characters[input->character_count + 1] = '\0';
+                    input->character_count += ascii_length;
                 }
+
+                // assert(input->character_count < array_count(input->characters));
+                // if (input->character_count < array_count(input->characters))
+                // {
+                //     input->characters[input->character_count++] = (char)msg.wParam;
+                // }
             } break;
 
             case 0x0104 /* WM_SYSKEYDOWN */:
@@ -286,7 +340,7 @@ static void win32_process_messages(PlatformInput *input, PlatformInput *prev_inp
 
             case 0x020A /* WM_MOUSEWHEEL */:
             {
-                input->mouse_z = (f32)((short)((short)((((ulongptr)(msg.wParam)) >> 16) & 0xffff))) / 120.0f;
+                // input->mouse_z = (f32)((short)((short)((((ulongptr)(msg.wParam)) >> 16) & 0xffff))) / 120.0f;
             } break;
 
             default:
@@ -518,18 +572,29 @@ static void win32_reload_app_dll_if_needed(Win32State *state)
     }
 }
 
+static b32 win32_init_rawinput(Win32State *state)
+{
+    Win32Api_RAWINPUTDEVICE device = {0};
+    device.usUsagePage = 0x01;
+    device.usUsage = 0x02;
+    device.hwndTarget = state->window.wnd;
+
+    b32 result = win32_api->RegisterRawInputDevices(&device, 1, sizeof(device));
+    return result;
+}
+
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, int cmd_show)
 {
     Win32State *state = win32_state;
 
     win32_init_win32_api(win32_api);
+    win32_init_exe_path(state);
+    win32_init_rawinput(state);
 
     state->memory_sentinel.prev = &state->memory_sentinel;
     state->memory_sentinel.next = &state->memory_sentinel;
+
     state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
-
-    win32_init_exe_path(state);
-
     if (state->window.initialized)
     {
         PlatformInput inputs[2] = {0};

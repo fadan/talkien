@@ -134,6 +134,68 @@ struct Win32Api_WIN32_FILE_ATTRIBUTE_DATA
     unsigned int nFileSizeLow;
 };
 
+struct Win32Api_RAWINPUTDEVICE
+{
+    unsigned short usUsagePage;
+    unsigned short usUsage;
+    unsigned int dwFlags;
+    void *hwndTarget;
+};
+
+struct Win32Api_RAWMOUSE
+{
+    unsigned short usFlags;
+    union
+    {
+        unsigned int ulButtons;
+        struct
+        {
+            unsigned short usButtonFlags;
+            unsigned short usButtonData;
+        };
+    };
+    unsigned int ulRawButtons;
+    int lLastX;
+    int lLastY;
+    unsigned int ulExtraInformation;
+};
+
+struct Win32Api_RAWKEYBOARD
+{
+    unsigned short MakeCode;
+    unsigned short Flags;
+    unsigned short Reserved;
+    unsigned short VKey;
+    unsigned int Message;
+    unsigned int ExtraInformation;
+};
+
+struct Win32Api_RAWHID
+{
+    unsigned int dwSizeHid;
+    unsigned int dwCount;
+    char bRawData[1];
+};
+
+struct Win32Api_RAWINPUTHEADER
+{
+    unsigned int dwType;
+    unsigned int dwSize;
+    void *hDevice;
+    uintptr wParam;
+};
+
+struct Win32Api_RAWINPUT
+{
+    Win32Api_RAWINPUTHEADER header;
+    union
+    {
+        Win32Api_RAWMOUSE mouse;
+        Win32Api_RAWKEYBOARD keyboard;
+        Win32Api_RAWHID hid;
+    } data;
+};
+
 #define WIN32_API_FUNCTION_LIST \
     WIN32_API(kernel32, CompareFileTime, int __stdcall, (Win32Api_FILETIME *filetime1, Win32Api_FILETIME *filetime2)) \
     WIN32_API(kernel32, CopyFileA, int __stdcall, (char *filename, char *new_filename, int fail_if_exists)) \
@@ -144,6 +206,7 @@ struct Win32Api_WIN32_FILE_ATTRIBUTE_DATA
     WIN32_API(kernel32, QueryPerformanceFrequency, int __stdcall, (Win32Api_LARGE_INTEGER *freq)) \
     WIN32_API(kernel32, VirtualAlloc, void * __stdcall, (void *addr, usize size, unsigned int alloc_type, unsigned int protect)) \
     WIN32_API(kernel32, VirtualFree, int __stdcall, (void *addr, usize size, usize free_type)) \
+    WIN32_API(kernel32, WideCharToMultiByte, int __stdcall, (unsigned int code_page, unsigned int flags, wchar_t *wide_char_str, int wide_char, char *multi_byte_str, int multi_byte, char *default_char, int *used_default_char)) \
     \
     WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
     WIN32_API(gdi32, DescribePixelFormat, int __stdcall, (void *dc, int pixel_format, unsigned int bytes, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
@@ -163,9 +226,11 @@ struct Win32Api_WIN32_FILE_ATTRIBUTE_DATA
     WIN32_API(user32, GetCursorPos, int __stdcall, (Win32Api_POINT *point)) \
     WIN32_API(user32, GetDC, void * __stdcall, (void *wnd)) \
     WIN32_API(user32, GetKeyState, short __stdcall, (int virtual_key)) \
+    WIN32_API(user32, GetRawInputData, unsigned int __stdcall, (void *rawinput, unsigned int commad, void *data, unsigned int *cbSize, unsigned int cbSizeHeader)) \
     WIN32_API(user32, LoadCursorA, void * __stdcall, (void *instance, char *cursor_name)) \
     WIN32_API(user32, PeekMessageA, int __stdcall, (Win32Api_MSG *msg, void *wnd, unsigned int msg_filter_min, unsigned int msg_filter_max, unsigned int remove_msg)) \
     WIN32_API(user32, RegisterClassExA, unsigned short __stdcall, (Win32Api_WNDCLASSEXA *)) \
+    WIN32_API(user32, RegisterRawInputDevices, int __stdcall, (Win32Api_RAWINPUTDEVICE *devices, unsigned int num_devices, unsigned int cbSize)) \
     WIN32_API(user32, ReleaseDC, int __stdcall, (void *wnd, void *dc)) \
     WIN32_API(user32, ScreenToClient, int __stdcall, (void *wnd, Win32Api_POINT *point)) \
     WIN32_API(user32, TranslateMessage, int __stdcall, (Win32Api_MSG *msg))
