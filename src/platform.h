@@ -120,30 +120,66 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
     }
 #endif
 
-enum
+enum PlatformButtonScanCode
 {
-    button_tab,
-    button_left,
-    button_right,
-    button_up,
-    button_down,
-    button_pageup,
-    button_pagedown,
-    button_home,
-    button_end,
-    button_delete,
-    button_backspace,
-    button_enter,
-    button_esc,
-    button_a,
-    button_c,
-    button_v,
-    button_x,
-    button_y,
-    button_z,
+    button_escape =             0x01,      button_1 =                 0x02,        button_2 =               0x03,      button_3 =                0x04,
+    button_4 =                  0x05,      button_5 =                 0x06,        button_6 =               0x07,      button_7 =                0x08,
+    button_8 =                  0x09,      button_9 =                 0x0A,        button_0 =               0x0B,      button_minus =            0x0C,
+    button_equals =             0x0D,      button_backspace =         0x0E,        button_tab =             0x0F,      button_q =                0x10,
+    button_w =                  0x11,      button_e =                 0x12,        button_r =               0x13,      button_t =                0x14,
+    button_y =                  0x15,      button_u =                 0x16,        button_i =               0x17,      button_o =                0x18,
+    button_p =                  0x19,      button_bracket_left =      0x1A,        button_bracket_right =   0x1B,      button_enter =            0x1C,
+    button_control_left =       0x1D,      button_a =                 0x1E,        button_s =               0x1F,      button_d =                0x20,
+    button_f =                  0x21,      button_g =                 0x22,        button_h =               0x23,      button_j =                0x24,
+    button_k =                  0x25,      button_l =                 0x26,        button_semicolon =       0x27,      button_apostrophe =       0x28,
+    button_grave =              0x29,      button_shift_left =        0x2A,        button_backslash =       0x2B,      button_z =                0x2C,
+    button_x =                  0x2D,      button_c =                 0x2E,        button_v =               0x2F,      button_b =                0x30,
+    button_n =                  0x31,      button_m =                 0x32,        button_comma =           0x33,      button_preiod =           0x34,
+    button_slash =              0x35,      button_shift_right =       0x36,        button_numpad_multiply = 0x37,      button_alt_left =         0x38,
+    button_space =              0x39,      button_caps_lock =         0x3A,        button_f1 =              0x3B,      button_f2 =               0x3C,
+    button_f3 =                 0x3D,      button_f4 =                0x3E,        button_f5 =              0x3F,      button_f6 =               0x40,
+    button_f7 =                 0x41,      button_f8 =                0x42,        button_f9 =              0x43,      button_f10 =              0x44,
+    button_num_lock =           0x45,      button_scroll_lock =       0x46,        button_numpad_7 =        0x47,      button_numpad_8 =         0x48,
+    button_numpad_9 =           0x49,      button_numpad_minus =      0x4A,        button_numpad_4 =        0x4B,      button_numpad_5 =         0x4C,
+    button_numpad_6 =           0x4D,      button_numpad_plus =       0x4E,        button_numpad_1 =        0x4F,      button_numpad_2 =         0x50,
+    button_numpad_3 =           0x51,      button_numpad_0 =          0x52,        button_numpad_period =   0x53,      button_alt_print_screen = 0x54,
+    button_bracket_angle =      0x56,      button_f11 =               0x57,        button_f12 =             0x58,      button_oem_1 =            0x5a,
+    button_oem_2 =              0x5b,      button_oem_3 =             0x5c,        button_erase_EOF =       0x5d,      button_oem_4 =            0x5e,
+    button_oem_5 =              0x5f,      button_zoom =              0x62,        button_help =            0x63,      button_f13 =              0x64,
+    button_f14 =                0x65,      button_f15 =               0x66,        button_f16 =             0x67,      button_f17 =              0x68,
+    button_f18 =                0x69,      button_f19 =               0x6a,        button_f20 =             0x6b,      button_f21 =              0x6c,
+    button_f22 =                0x6d,      button_f23 =               0x6e,        button_oem_6 =           0x6f,      button_katakana =         0x70,
+    button_oem_7 =              0x71,      button_f24 =               0x76,        button_sbcschar =        0x77,      button_convert =          0x79,
+    button_nonconvert =         0x7B,      
+    
+    button_media_previous =     0xE010,    button_media_next =        0xE019,      button_numpad_enter =    0xE01C,    button_control_right =    0xE01D,    
+    button_volume_mute =        0xE020,    button_launch_app2 =       0xE021,      button_media_play =      0xE022,    button_media_stop =       0xE024,    
+    button_volume_down =        0xE02E,    button_volume_up =         0xE030,      button_browser_home =    0xE032,    button_numpad_divide =    0xE035,
+    button_print_screen =       0xE037,    button_alt_right =         0xE038,      button_cancel =          0xE046,    button_home =             0xE047,    
+    button_arrow_up =           0xE048,    button_page_up =           0xE049,      button_arrow_left =      0xE04B,    button_arrow_right =      0xE04D,    
+    button_end =                0xE04F,    button_arrow_down =        0xE050,      button_page_down =       0xE051,    button_insert =           0xE052,    
+    button_delete =             0xE053,    button_meta_left =         0xE05B,      button_meta_right =      0xE05C,    button_application =      0xE05D,
+    button_power =              0xE05E,    button_sleep =             0xE05F,      button_wake =            0xE063,    button_browser_search =   0xE065,
+    button_browser_favorites =  0xE066,    button_browser_refresh =   0xE067,      button_browser_stop =    0xE068,    button_browser_forward =  0xE069,
+    button_browser_back =       0xE06A,    button_launch_app1 =      0xE06B,       button_launch_email =    0xE06C,    button_launch_media =     0xE06D,    
 
-    button_count,
+    button_pause =              0xE11D45,
 };
+
+inline u32 get_scan_code_offset(u32 scan_code)
+{
+    u32 offset = scan_code;
+    if (scan_code >= button_pause)
+    {
+        offset = button_nonconvert + 1 + (button_launch_media - button_media_previous) + 1 + (scan_code - button_pause);
+    }
+    else if (scan_code >= button_media_previous)
+    {
+        offset = button_nonconvert + 1 + (scan_code - button_media_previous);
+    }
+    assert(offset <= 0xFF);
+    return offset;
+}
 
 enum
 {
@@ -156,12 +192,6 @@ enum
     mouse_button_count,
 };
 
-struct PlatformButtonState
-{
-    u32 transitions;
-    b32 is_down;
-};
-
 struct PlatformButton
 {
     b32 down;
@@ -171,34 +201,40 @@ struct PlatformButton
 
 struct PlatformInput
 {
+    f32 dt;
+    b32 quit_requested;
+
     i32 wheel;
     i32 delta_wheel;
     int mouse_pos[2];
     int delta_mouse_pos[2];
-    PlatformButton mouse[mouse_button_count];
 
-    f32 dt;
-    b32 quit_requested;
+    u32 text_input_length;
+    u16 text_input[16];
 
-    f32 mouse_x;
-    f32 mouse_y;
-    f32 mouse_z;
-
-    b32 shift_down;
-    b32 ctrl_down;
-    b32 alt_down;
-
-    PlatformButtonState buttons[button_count];
-    PlatformButtonState mouse_buttons[mouse_button_count];
-
-    u32 character_count;
-    char characters[16];
+    PlatformButton buttons[256];
+    PlatformButton mouse_buttons[mouse_button_count];
 };
 
-inline b32 was_pressed(PlatformButtonState state)
+inline b32 is_down(PlatformInput *input, u32 scan_code)
 {
-    b32 result = ((state.transitions > 1) || ((state.transitions == 1) && (state.is_down)));
-    return result;
+    u32 offset = get_scan_code_offset(scan_code);
+    b32 is_down = input->buttons[offset].down;
+    return is_down;
+}
+
+inline b32 is_pressed(PlatformInput *input, u32 scan_code)
+{
+    u32 offset = get_scan_code_offset(scan_code);
+    b32 is_pressed = input->buttons[offset].pressed;
+    return is_pressed;
+}
+
+inline b32 is_released(PlatformInput *input, u32 scan_code)
+{
+    u32 offset = get_scan_code_offset(scan_code);
+    b32 is_released = input->buttons[offset].released;
+    return is_released;
 }
 
 struct PlatformMemoryBlock

@@ -136,7 +136,7 @@ static void init_ui()
     style->ScrollbarRounding = 9.0f;
     style->GrabMinSize = 5.0f;
     style->GrabRounding = 3.0f;
- 
+
     style->Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.80f, 0.83f, 1.00f);
     style->Colors[ImGuiCol_TextDisabled] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
     style->Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
@@ -180,6 +180,26 @@ static void init_ui()
     style->Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
     style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 1.00f, 0.00f, 0.43f);
     style->Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(1.00f, 0.98f, 0.95f, 0.73f);
+
+    global_imgui->KeyMap[ImGuiKey_Tab] = get_scan_code_offset(button_tab);
+    global_imgui->KeyMap[ImGuiKey_LeftArrow] = get_scan_code_offset(button_arrow_left);
+    global_imgui->KeyMap[ImGuiKey_RightArrow] = get_scan_code_offset(button_arrow_right);
+    global_imgui->KeyMap[ImGuiKey_UpArrow] = get_scan_code_offset(button_arrow_up);
+    global_imgui->KeyMap[ImGuiKey_DownArrow] = get_scan_code_offset(button_arrow_down);
+    global_imgui->KeyMap[ImGuiKey_PageUp] = get_scan_code_offset(button_page_up);
+    global_imgui->KeyMap[ImGuiKey_PageDown] = get_scan_code_offset(button_page_down);
+    global_imgui->KeyMap[ImGuiKey_Home] = get_scan_code_offset(button_home);
+    global_imgui->KeyMap[ImGuiKey_End] = get_scan_code_offset(button_end);
+    global_imgui->KeyMap[ImGuiKey_Delete] = get_scan_code_offset(button_delete);
+    global_imgui->KeyMap[ImGuiKey_Backspace] = get_scan_code_offset(button_backspace);
+    global_imgui->KeyMap[ImGuiKey_Enter] = get_scan_code_offset(button_enter);
+    global_imgui->KeyMap[ImGuiKey_Escape] = get_scan_code_offset(button_escape);
+    global_imgui->KeyMap[ImGuiKey_A] = get_scan_code_offset(button_a);
+    global_imgui->KeyMap[ImGuiKey_C] = get_scan_code_offset(button_c);
+    global_imgui->KeyMap[ImGuiKey_V] = get_scan_code_offset(button_v);
+    global_imgui->KeyMap[ImGuiKey_X] = get_scan_code_offset(button_x);
+    global_imgui->KeyMap[ImGuiKey_Y] = get_scan_code_offset(button_y);
+    global_imgui->KeyMap[ImGuiKey_Z] = get_scan_code_offset(button_z);
 }
 
 static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
@@ -187,24 +207,25 @@ static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)
     global_imgui->DisplaySize = ImVec2((f32)window_width, (f32)window_height);
     global_imgui->DeltaTime = input->dt;
 
-    global_imgui->MousePos = ImVec2(input->mouse_x, input->mouse_y);
-    global_imgui->MouseDown[0] = input->mouse_buttons[mouse_button_left].is_down != 0;
-    global_imgui->MouseDown[1] = input->mouse_buttons[mouse_button_right].is_down != 0;
-    global_imgui->MouseDown[2] = input->mouse_buttons[mouse_button_middle].is_down != 0;
-    global_imgui->MouseWheel = input->mouse_z;
+    global_imgui->MousePos = ImVec2((f32)input->mouse_pos[0], (f32)input->mouse_pos[1]);
+    global_imgui->MouseDown[0] = input->mouse_buttons[mouse_button_left].down != 0;
+    global_imgui->MouseDown[1] = input->mouse_buttons[mouse_button_right].down != 0;
+    global_imgui->MouseDown[2] = input->mouse_buttons[mouse_button_middle].down != 0;
+    global_imgui->MouseWheel = (f32)input->wheel;
 
-    global_imgui->KeyCtrl = input->ctrl_down != 0;
-    global_imgui->KeyShift = input->shift_down != 0;
-    global_imgui->KeyAlt = input->alt_down != 0;
+    global_imgui->KeyCtrl = (is_down(input, button_control_left) || is_down(input, button_control_right));
+    global_imgui->KeyShift = (is_down(input, button_shift_left) || is_down(input, button_shift_right));
+    global_imgui->KeyAlt = (is_down(input, button_alt_left) || is_down(input, button_alt_right));
 
-    for (u32 character_index = 0; character_index < input->character_count; ++character_index)
+    for (u32 character_index = 0; character_index < input->text_input_length; ++character_index)
     {
-        char *character = input->characters + character_index;
-        global_imgui->AddInputCharacter(*character);
+        u16 *c = input->text_input + character_index;
+        global_imgui->AddInputCharacter(*c);
     }
-    for (u32 button_index = 0; button_index < button_count; ++button_index)
+
+    for (u32 button_index = 0; button_index < array_count(input->buttons); ++button_index)
     {
-        global_imgui->KeysDown[button_index] = (input->buttons[button_index].is_down != 0);
+        global_imgui->KeysDown[button_index] = (input->buttons[button_index].down != 0);
     }
 
     ImGui::NewFrame();

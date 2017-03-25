@@ -206,7 +206,6 @@ struct Win32Api_RAWINPUT
     WIN32_API(kernel32, QueryPerformanceFrequency, int __stdcall, (Win32Api_LARGE_INTEGER *freq)) \
     WIN32_API(kernel32, VirtualAlloc, void * __stdcall, (void *addr, usize size, unsigned int alloc_type, unsigned int protect)) \
     WIN32_API(kernel32, VirtualFree, int __stdcall, (void *addr, usize size, usize free_type)) \
-    WIN32_API(kernel32, WideCharToMultiByte, int __stdcall, (unsigned int code_page, unsigned int flags, wchar_t *wide_char_str, int wide_char, char *multi_byte_str, int multi_byte, char *default_char, int *used_default_char)) \
     \
     WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
     WIN32_API(gdi32, DescribePixelFormat, int __stdcall, (void *dc, int pixel_format, unsigned int bytes, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
@@ -269,7 +268,6 @@ struct Win32Window
     void *rc;
     i32 width;
     i32 height;
-    b32 initialized;
 };
 
 struct Win32MemoryBlock
@@ -288,7 +286,7 @@ struct Win32State
     Win32Window window;
 
     AppMemory app_memory;
-
+    PlatformInput input;
 
     Mutex memory_mutex;
     Win32MemoryBlock memory_sentinel;
@@ -304,4 +302,6 @@ struct Win32State
     b32 app_dll_reloaded;
     Win32Api_FILETIME app_dll_last_write;
     UpdateAndRender *update_and_render;
+
+    b32 pause_scan_code_read;
 };

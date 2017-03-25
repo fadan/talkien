@@ -78,7 +78,6 @@ static b32 win32_init_opengl_extensions()
 static void *win32_opengl_create_context(void *dc, int *pixel_format_attribs, int *context_attribs)
 {
     void *rc = 0;
-
     if (win32_api->wglChoosePixelFormatARB)
     {
         Win32Api_PIXELFORMATDESCRIPTOR pixel_format = {0};
@@ -98,7 +97,6 @@ static void *win32_opengl_create_context(void *dc, int *pixel_format_attribs, in
     {
         assert_always("Init wgl extensions before calling this function");
     }
-
     return rc;
 }
 
@@ -150,7 +148,7 @@ static Win32Window win32_open_window_init_with_opengl(char *title, i32 width, i3
         result.width = client_width;
         result.height = client_height;
 
-        result.initialized = win32_api->wglMakeCurrent(result.dc, result.rc);
+        win32_api->wglMakeCurrent(result.dc, result.rc);
     }
 
     return result;
@@ -197,29 +195,12 @@ static intptr __stdcall win32_window_proc(void *wnd, unsigned int message, uintp
             win32_state->window.height = height;
         } break;
 
-        case 0x0104 /* WM_SYSKEYDOWN */:
-        case 0x0105 /* WM_SYSKEYUP */:
-        case 0x0100 /* WM_KEYDOWN */:
-        case 0x0101 /* WM_KEYUP */:
-        {
-            assert_always("Keyboard input came in as a non-dispatch message");
-        } break;
-
         default:
         {
             result = win32_api->DefWindowProcA(wnd, message, wparam, lparam);
         } break;
     }
     return result;
-}
-
-static void win32_process_button(PlatformButtonState *state, b32 is_down)
-{
-    if (state->is_down != is_down)
-    {
-        state->is_down = is_down;
-        ++state->transitions;
-    }
 }
 
 static void win32_update_button(PlatformButton *button, b32 down)
@@ -230,7 +211,104 @@ static void win32_update_button(PlatformButton *button, b32 down)
     button->released = was_down && !down;
 }
 
-static void win32_process_messages(PlatformInput *input, PlatformInput *prev_input)
+static void win32_get_raw_input(PlatformInput *input, intptr lparam)
+{
+    Win32Api_RAWINPUT raw_input;
+    unsigned int raw_input_size = sizeof(raw_input);
+    win32_api->GetRawInputData((void *)lparam, 0x10000003 /* RID_INPUT */, &raw_input, &raw_input_size, sizeof(Win32Api_RAWINPUTHEADER));
+    
+    if (raw_input.header.dwType == 0 /* RIM_TYPEMOUSE */)
+    {
+        input->delta_mouse_pos[0] += raw_input.data.mouse.lLastX;
+        input->delta_mouse_pos[1] += raw_input.data.mouse.lLastY;
+
+        unsigned short button_flags = raw_input.data.mouse.usButtonFlags;
+
+        int left_button_down = input->mouse_buttons[mouse_button_left].down;
+        if (button_flags & 0x0001 /* RI_MOUSE_LEFT_BUTTON_DOWN */) left_button_down = true;
+        if (button_flags & 0x0002 /* RI_MOUSE_LEFT_BUTTON_UP */)   left_button_down = false;
+        win32_update_button(&input->mouse_buttons[mouse_button_left], left_button_down);
+
+        int middle_button_down = input->mouse_buttons[mouse_button_middle].down;
+        if (button_flags & 0x0010 /* RI_MOUSE_MIDDLE_BUTTON_DOWN */) middle_button_down = true;
+        if (button_flags & 0x0020 /* RI_MOUSE_MIDDLE_BUTTON_UP */)   middle_button_down = false;
+        win32_update_button(&input->mouse_buttons[mouse_button_middle], middle_button_down);
+
+        int right_button_down = input->mouse_buttons[mouse_button_right].down;
+        if (button_flags & 0x0004 /* RI_MOUSE_RIGHT_BUTTON_DOWN */) right_button_down = true;
+        if (button_flags & 0x0008 /* RI_MOUSE_RIGHT_BUTTON_UP */)   right_button_down = false;
+        win32_update_button(&input->mouse_buttons[mouse_button_right], right_button_down);
+
+        int extended0_button_down = input->mouse_buttons[mouse_button_extended0].down;
+        if (button_flags & 0x0040 /* RI_MOUSE_BUTTON_4_DOWN */) extended0_button_down = true;
+        if (button_flags & 0x0080 /* RI_MOUSE_BUTTON_4_UP */)   extended0_button_down = false;
+        win32_update_button(&input->mouse_buttons[mouse_button_extended0], extended0_button_down);
+
+        int extended1_button_down = input->mouse_buttons[mouse_button_extended1].down;
+        if (button_flags & 0x0100 /* RI_MOUSE_BUTTON_5_DOWN */) extended1_button_down = true;
+        if (button_flags & 0x0200 /* RI_MOUSE_BUTTON_5_UP */)   extended1_button_down = false;
+        win32_update_button(&input->mouse_buttons[mouse_button_extended1], extended1_button_down);
+
+        if (button_flags & 0x0400 /* RI_MOUSE_WHEEL */)
+        {
+            input->delta_wheel += ((short)raw_input.data.mouse.usButtonData) / 120 /* WHEEL_DELTA */;
+        }
+    }
+    else if (raw_input.header.dwType == 1 /* RIM_TYPEKEYBOARD */)
+    {
+        unsigned int scan_code = raw_input.data.keyboard.MakeCode;
+        unsigned short flags = raw_input.data.keyboard.Flags;
+
+        assert(scan_code <= 0xFF);
+
+        if (flags & 2 /* RI_KEY_E0 */)
+        {
+            scan_code |= 0xE000;
+        }
+        else if (flags & 4 /* RI_KEY_E1 */)
+        {
+            scan_code |= 0xE100;
+        }
+
+        // NOTE(dan): pause scan_code is in 2 parts: WM_INPUT \w 0xE11D and WM_INPUT \w 0x45
+        if (win32_state->pause_scan_code_read)
+        {
+            if (scan_code == 0x45)
+            {
+                scan_code = 0xE11D45;
+            }
+            win32_state->pause_scan_code_read = false;
+        }
+        else if (scan_code == 0xE11D)
+        {
+            win32_state->pause_scan_code_read = true;
+        }
+        else if (scan_code == 0x54)
+        {
+            // NOTE(dan): alt + print screen returns 0x54, but we want 0xE037 for GetKeyNameText
+            scan_code = 0xE037;
+        }
+
+        if (!(scan_code == 0xE11D || scan_code == 0xE02A || scan_code == 0xE0AA || scan_code == 0xE0B6 || scan_code == 0xE036))
+        {
+            u32 offset = get_scan_code_offset(scan_code);
+            b32 is_down = !(flags & 1 /* RI_KEY_BREAK */);
+
+            win32_update_button(&input->buttons[offset], is_down);
+        }
+    }
+}
+
+static void win32_get_text_input(PlatformInput *input, uintptr wparam)
+{
+    if (input->text_input_length < (array_count(input->text_input) - 1))
+    {
+        input->text_input[input->text_input_length++] = (unsigned short)wparam;
+        input->text_input[input->text_input_length] = 0;
+    }
+}
+
+static void win32_process_messages(PlatformInput *input)
 {
     Win32Api_MSG msg;
     while (win32_api->PeekMessageA(&msg, 0, 0, 0, 0x0001 /* PM_REMOVE */))
@@ -245,102 +323,12 @@ static void win32_process_messages(PlatformInput *input, PlatformInput *prev_inp
 
             case 0x00FF /* WM_INPUT */:
             {
-                unsigned int size;
-                win32_api->GetRawInputData((void *)msg.lParam, 0x10000003 /* RID_INPUT */, 0, &size, sizeof(Win32Api_RAWINPUTHEADER));
-
-                Win32Api_RAWINPUT raw_input[4096];
-                if (win32_api->GetRawInputData((void *)msg.lParam, 0x10000003 /* RID_INPUT */, raw_input, &size, sizeof(Win32Api_RAWINPUTHEADER)) == size)
-                {
-                    if (raw_input->header.dwType == 0 /* RIM_TYPEMOUSE */ && raw_input->data.mouse.usFlags == 0 /* MOUSE_MOVE_RELATIVE */)
-                    {
-                        input->delta_mouse_pos[0] += raw_input->data.mouse.lLastX;
-                        input->delta_mouse_pos[1] += raw_input->data.mouse.lLastY;
-
-                        unsigned short button_flags = raw_input->data.mouse.usButtonFlags;
-
-                        int left_button_down = input->mouse[mouse_button_left].down;
-                        if (button_flags & 0x0001 /* RI_MOUSE_LEFT_BUTTON_DOWN */) left_button_down = true;
-                        if (button_flags & 0x0002 /* RI_MOUSE_LEFT_BUTTON_UP */)   left_button_down = false;
-                        win32_update_button(&input->mouse[mouse_button_left], left_button_down);
-
-                        int right_button_down = input->mouse[mouse_button_right].down;
-                        if (button_flags & 0x0004 /* RI_MOUSE_RIGHT_BUTTON_DOWN */) right_button_down = true;
-                        if (button_flags & 0x0008 /* RI_MOUSE_RIGHT_BUTTON_UP */)   right_button_down = false;
-                        win32_update_button(&input->mouse[mouse_button_right], right_button_down);
-
-                        // TODO(dan): middle, xbutton1, xbutton2
-
-                        if (button_flags & 0x0400 /* RI_MOUSE_WHEEL */)
-                        {
-                            input->delta_wheel += ((short)raw_input->data.mouse.usButtonData) / 120 /* WHEEL_DELTA */;
-                        }
-                    }
-                }
+                win32_get_raw_input(input, msg.lParam);
             } break;
 
             case 0x0102 /* WM_CHAR */:
             {
-                wchar_t utf16_character = (wchar_t)msg.wParam;
-                char ascii_character;
-                unsigned int ascii_length = win32_api->WideCharToMultiByte(0 /* CP_ACP */, 0, &utf16_character, 1, &ascii_character, 1, 0, 0);
-
-                if (ascii_length == 1 && ((input->character_count + 1) < (sizeof(input->characters) - 1)))
-                {
-                    input->characters[input->character_count] = ascii_character;
-                    input->characters[input->character_count + 1] = '\0';
-                    input->character_count += ascii_length;
-                }
-
-                // assert(input->character_count < array_count(input->characters));
-                // if (input->character_count < array_count(input->characters))
-                // {
-                //     input->characters[input->character_count++] = (char)msg.wParam;
-                // }
-            } break;
-
-            case 0x0104 /* WM_SYSKEYDOWN */:
-            case 0x0105 /* WM_SYSKEYUP */:
-            case 0x0100 /* WM_KEYDOWN */:
-            case 0x0101 /* WM_KEYUP */:
-            {
-                b32 was_down = ((msg.lParam & (1 << 30)) != 0);
-                b32 is_down = ((msg.lParam & (1 << 31)) == 0);
-
-                if (was_down != is_down)
-                {
-                    switch (msg.wParam)
-                    {
-                        case 0x09 /* VK_TAB */:    { win32_process_button(&input->buttons[button_tab],       is_down); } break;
-                        case 0x25 /* VK_LEFT */:   { win32_process_button(&input->buttons[button_left],      is_down); } break;
-                        case 0x27 /* VK_RIGHT */:  { win32_process_button(&input->buttons[button_right],     is_down); } break;
-                        case 0x26 /* VK_UP */:     { win32_process_button(&input->buttons[button_up],        is_down); } break;
-                        case 0x28 /* VK_DOWN */:   { win32_process_button(&input->buttons[button_down],      is_down); } break;
-                        case 0x21 /* VK_PRIOR */:  { win32_process_button(&input->buttons[button_pageup],    is_down); } break;
-                        case 0x22 /* VK_NEXT */:   { win32_process_button(&input->buttons[button_pagedown],  is_down); } break;
-                        case 0x24 /* VK_HOME */:   { win32_process_button(&input->buttons[button_home],      is_down); } break;
-                        case 0x23 /* VK_END */:    { win32_process_button(&input->buttons[button_end],       is_down); } break;
-                        case 0x2E /* VK_DELETE */: { win32_process_button(&input->buttons[button_delete],    is_down); } break;
-                        case 0x08 /* VK_BACK */:   { win32_process_button(&input->buttons[button_backspace], is_down); } break;
-                        case 0x0D /* VK_RETURN */: { win32_process_button(&input->buttons[button_enter],     is_down); } break;
-                        case 0x1B /* VK_ESCAPE */: { win32_process_button(&input->buttons[button_esc],       is_down); } break;
-                        case 'A':                  { win32_process_button(&input->buttons[button_a],         is_down); } break;
-                        case 'C':                  { win32_process_button(&input->buttons[button_c],         is_down); } break;
-                        case 'V':                  { win32_process_button(&input->buttons[button_v],         is_down); } break;
-                        case 'X':                  { win32_process_button(&input->buttons[button_x],         is_down); } break;
-                        case 'Y':                  { win32_process_button(&input->buttons[button_y],         is_down); } break;
-                        case 'Z':                  { win32_process_button(&input->buttons[button_z],         is_down); } break;
-                    }
-                }
-
-                if (message == 0x0100 /* WM_KEYDOWN */)
-                {
-                    win32_api->TranslateMessage(&msg);
-                }
-            } break;
-
-            case 0x020A /* WM_MOUSEWHEEL */:
-            {
-                // input->mouse_z = (f32)((short)((short)((((ulongptr)(msg.wParam)) >> 16) & 0xffff))) / 120.0f;
+                win32_get_text_input(input, msg.wParam);
             } break;
 
             default:
@@ -352,46 +340,25 @@ static void win32_process_messages(PlatformInput *input, PlatformInput *prev_inp
     }
 }
 
-static void win32_update_input(PlatformInput *input, PlatformInput *prev_input, f32 dt)
+static void win32_update_input(PlatformInput *input, f32 dt)
 {
-    *input = {0};
-
-    for (u32 button_index = 0; button_index < button_count; ++button_index)
-    {
-        input->buttons[button_index].is_down = prev_input->buttons[button_index].is_down;
-    }
-
-    win32_process_messages(input, prev_input);
-    
     input->dt = dt;
-    input->shift_down = (win32_api->GetKeyState(0x10 /* VK_SHIFT */) & (1 << 15));
-    input->alt_down = (win32_api->GetKeyState(0x12 /* VK_MENU */) & (1 << 15));
-    input->ctrl_down = (win32_api->GetKeyState(0x11 /* VK_CONTROL */) & (1 << 15));
+    input->text_input_length = 0;
+    input->delta_mouse_pos[0] = 0;
+    input->delta_mouse_pos[1] = 0;
+    input->delta_wheel = 0;
+    input->wheel = 0;
+
+    win32_process_messages(input);
+
+    input->wheel += input->delta_wheel;
 
     Win32Api_POINT mouse_p;
     win32_api->GetCursorPos(&mouse_p);
     win32_api->ScreenToClient(win32_state->window.wnd, &mouse_p);
 
-    input->mouse_x = (f32)mouse_p.x;
-    input->mouse_y = (f32)mouse_p.y;
-
-    unsigned int mouse_button_id[mouse_button_count] =
-    {
-        0x01 /* VK_LBUTTON */,
-        0x04 /* VK_MBUTTON */,
-        0x02 /* VK_RBUTTON */,
-        0x05 /* VK_XBUTTON1 */,
-        0x06 /* VK_XBUTTON2 */,
-    };
-
-    for (u32 mouse_button_index = 0; mouse_button_index < mouse_button_count; ++mouse_button_index)
-    {
-        input->mouse_buttons[mouse_button_index] = prev_input->mouse_buttons[mouse_button_index];
-        input->mouse_buttons[mouse_button_index].transitions = 0;
-
-        b32 is_down = win32_api->GetKeyState(mouse_button_id[mouse_button_index]) & (1 << 15);
-        win32_process_button(&input->mouse_buttons[mouse_button_index], is_down);
-    }
+    input->mouse_pos[0] = mouse_p.x;
+    input->mouse_pos[1] = mouse_p.y;
 }
 
 static PLATFORM_ALLOCATE(win32_allocate)
@@ -572,15 +539,19 @@ static void win32_reload_app_dll_if_needed(Win32State *state)
     }
 }
 
-static b32 win32_init_rawinput(Win32State *state)
+static void win32_init_rawinput(Win32State *state)
 {
-    Win32Api_RAWINPUTDEVICE device = {0};
-    device.usUsagePage = 0x01;
-    device.usUsage = 0x02;
-    device.hwndTarget = state->window.wnd;
+    Win32Api_RAWINPUTDEVICE device[2] = {0};
+    device[0].usUsagePage = 0x01 /* HID_USAGE_PAGE_GENERIC */;
+    device[0].usUsage = 0x02 /* HID_USAGE_GENERIC_MOUSE */;
+    device[0].hwndTarget = state->window.wnd;
 
-    b32 result = win32_api->RegisterRawInputDevices(&device, 1, sizeof(device));
-    return result;
+    device[1].usUsagePage = 0x01 /* HID_USAGE_PAGE_GENERIC */;
+    device[1].usUsage = 0x06 /* HID_USAGE_GENERIC_KEYBOARD */;
+    device[1].hwndTarget = state->window.wnd;
+
+    b32 registered = win32_api->RegisterRawInputDevices(device, 2, sizeof(device[0]));
+    assert(registered);
 }
 
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, int cmd_show)
@@ -595,11 +566,9 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
     state->memory_sentinel.next = &state->memory_sentinel;
 
     state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
-    if (state->window.initialized)
+    if (state->window.rc)
     {
-        PlatformInput inputs[2] = {0};
-        PlatformInput *input = &inputs[0];
-        PlatformInput *prev_input = &inputs[1];
+        PlatformInput *input = &state->input;
 
         AppMemory *app_memory = &win32_state->app_memory;
         app_memory->platform.allocate = win32_allocate;
@@ -620,7 +589,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
         state->running = true;
         while (state->running)
         {
-            win32_update_input(input, prev_input, dt);
+            win32_update_input(input, dt);
             
             state->update_and_render(app_memory, input, state->window.width, state->window.height);
 
@@ -631,7 +600,6 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
                 state->running = false;
             }
 
-            swap_values(PlatformInput *, input, prev_input);
             win32_api->SwapBuffers(state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;
