@@ -9,9 +9,8 @@ static Win32Api *win32_api = &global_win32_api;
 static Win32State global_win32_state;
 static Win32State *win32_state = &global_win32_state;
 
-static void *win32_open_window(char *title, i32 width, i32 height, Win32Api_WNDPROC wndproc, b32 show = true)
+static void *win32_create_window(char *title, i32 width, i32 height, Win32Api_WNDPROC wndproc)
 {
-    void *result = 0;
     Win32Api_WNDCLASSEXA window_class = {0};
     window_class.cbSize        = sizeof(window_class);
     window_class.style         = 0x0020 /* CS_OWNDC */;
@@ -20,6 +19,7 @@ static void *win32_open_window(char *title, i32 width, i32 height, Win32Api_WNDP
     window_class.hCursor       = win32_api->LoadCursorA(0, ((char *)((uintptr)((short)(32512)))) /* IDC_ARROW */);
     window_class.lpszClassName = title;
 
+    void *wnd = 0;
     if (win32_api->RegisterClassExA(&window_class))
     {
         int x = (int)0x80000000 /* CW_USEDEFAULT */;
@@ -28,97 +28,69 @@ static void *win32_open_window(char *title, i32 width, i32 height, Win32Api_WNDP
                                     0x00080000L /* WS_SYSKEYMENU */  | 0x00040000L /* WS_THICKFRAME */ | 
                                     0x00020000L /* WS_MINIMIZEBOX */ | 0x00010000L /* WS_MAXIMIZEBOX */
                                    ) /* WS_OVERLAPPEDWINDOW */ | 0x10000000L /* WS_VISIBLE */);
-
-        result = win32_api->CreateWindowExA(0, window_class.lpszClassName, title, (show) ? overlapped : 0,
+        wnd = win32_api->CreateWindowExA(0, window_class.lpszClassName, title, overlapped, 
                                             x, y, width, height, 0, 0, window_class.hInstance, 0);
     }
-
-    return result;
+    return wnd;
 }
 
-static b32 win32_init_opengl_extensions()
+static void win32_set_vsync(b32 enable)
 {
-    b32 result = false;
-    Win32Window dummy = {0};
-    dummy.wnd = win32_open_window("TalkienDummyWindow", 0, 0, (Win32Api_WNDPROC)win32_api->DefWindowProcA, false);
+    Win32Api_wglSwapIntervalEXT wglSwapIntervalEXT = (Win32Api_wglSwapIntervalEXT)win32_api->wglGetProcAddress("wglSwapIntervalEXT");
 
-    if (dummy.wnd)
+    if (wglSwapIntervalEXT)
     {
-        Win32Api_PIXELFORMATDESCRIPTOR descriptor = {0};
-        descriptor.nSize        = sizeof(descriptor);
-        descriptor.dwFlags      = 0x00000004 /* PFD_DRAW_TO_WINDOW */ | 0x00000020 /* PFD_SUPPORT_OPENGL */ | 0x00000001 /* PFD_DOUBLEBUFFER */;
-        descriptor.iPixelType   = 0 /* PFD_TYPE_RGBA */;
-        descriptor.cColorBits   = 32;
-        descriptor.cDepthBits   = 24;
-        descriptor.cStencilBits = 8;
-        descriptor.iLayerType   = 0 /* PFD_MAIN_PLANE */;
-
-        dummy.dc = win32_api->GetDC(dummy.wnd);
-        i32 pixel_format_index = win32_api->ChoosePixelFormat(dummy.dc, &descriptor);            
-        win32_api->SetPixelFormat(dummy.dc, pixel_format_index, &descriptor);
-
-        dummy.rc = win32_api->wglCreateContext(dummy.dc);
-        if (win32_api->wglMakeCurrent(dummy.dc, dummy.rc))
-        {
-            win32_api->wglChoosePixelFormatARB = (Win32Api_wglChoosePixelFormatARB)win32_api->wglGetProcAddress("wglChoosePixelFormatARB");
-            win32_api->wglCreateContextAttribsARB = (Win32Api_wglCreateContextAttribsARB)win32_api->wglGetProcAddress("wglCreateContextAttribsARB");
-            win32_api->wglSwapIntervalEXT = (Win32Api_wglSwapIntervalEXT)win32_api->wglGetProcAddress("wglSwapIntervalEXT");
-
-            result = win32_api->wglMakeCurrent(0, 0);
-        }
-
-        win32_api->wglDeleteContext(dummy.rc);
-        win32_api->ReleaseDC(dummy.wnd, dummy.dc);
-        win32_api->DestroyWindow(dummy.wnd);
+        wglSwapIntervalEXT(enable ? 1 : 0);
     }
-
-    return result;
 }
 
-static void *win32_opengl_create_context(void *dc, int *pixel_format_attribs, int *context_attribs)
+static void *win32_create_context(void *dc, int *context_attribs)
 {
-    void *rc = 0;
-    if (win32_api->wglChoosePixelFormatARB)
+    void *rc = win32_api->wglCreateContext(dc);
+    if (win32_api->wglMakeCurrent(dc, rc))
     {
-        Win32Api_PIXELFORMATDESCRIPTOR pixel_format = {0};
-        int pixel_format_index = 0;
-        unsigned int num_formats = 0;
+        Win32Api_wglCreateContextAttribsARB wglCreateContextAttribsARB = (Win32Api_wglCreateContextAttribsARB)win32_api->wglGetProcAddress("wglCreateContextAttribsARB");
 
-        win32_api->wglChoosePixelFormatARB(dc, pixel_format_attribs, 0, 1, &pixel_format_index, &num_formats);
-        win32_api->DescribePixelFormat(dc, pixel_format_index, sizeof(pixel_format), &pixel_format);
-        win32_api->SetPixelFormat(dc, pixel_format_index, &pixel_format);
-
-        if (win32_api->wglCreateContextAttribsARB)
+        if (wglCreateContextAttribsARB)
         {
-            rc = win32_api->wglCreateContextAttribsARB(dc, 0, context_attribs);
+            win32_api->wglMakeCurrent(dc, 0);
+            win32_api->wglDeleteContext(rc);
+
+            rc = wglCreateContextAttribsARB(dc, 0, context_attribs);
         }
-    }
-    else
-    {
-        assert_always("Init wgl extensions before calling this function");
     }
     return rc;
 }
 
-static Win32Window win32_open_window_init_with_opengl(char *title, i32 width, i32 height, Win32Api_WNDPROC wndproc)
+static void win32_set_pixel_format(void *dc)
 {
-    Win32Window result = {0};
-    result.wnd = win32_open_window(title, width, height, wndproc);
-    
-    if (result.wnd)
+    Win32Api_PIXELFORMATDESCRIPTOR descriptor = {0};
+    descriptor.nSize        = sizeof(descriptor);
+    descriptor.dwFlags      = 0x4 /* PFD_DRAW_TO_WINDOW */ | 0x20 /* PFD_SUPPORT_OPENGL */ | 0x1 /* PFD_DOUBLEBUFFER */;
+    descriptor.iPixelType   = 0 /* PFD_TYPE_RGBA */;
+    descriptor.cColorBits   = 32;
+    descriptor.cDepthBits   = 24;
+    descriptor.cStencilBits = 8;
+    descriptor.iLayerType   = 0 /* PFD_MAIN_PLANE */;
+
+
+    int pixel_format = win32_api->ChoosePixelFormat(dc, &descriptor);
+    if (pixel_format && win32_api->DescribePixelFormat(dc, pixel_format, sizeof(descriptor), &descriptor))
     {
-        i32 pixel_format_attribs[] =
-        {
-            0x2001 /* WGL_DRAW_TO_WINDOW_ARB */,  1      /* GL_TRUE */,
-            0x2003 /* WGL_ACCELERATION_ARB */,    0x2027 /* WGL_FULL_ACCELERATION_ARB */,
-            0x2010 /* WGL_SUPPORT_OPENGL_ARB */,  1      /* GL_TRUE */,
-            0x2011 /* WGL_DOUBLE_BUFFER_ARB */,   1      /* GL_TRUE */,
-            0x2013 /* WGL_PIXEL_TYPE_ARB */,      0x202B /* WGL_TYPE_RGBA_ARB */,
-            0x2014 /* WGL_COLOR_BITS_ARB */,      24,
-            0x2022 /* WGL_DEPTH_BITS_ARB */,      24,
-            0x2023 /* WGL_STENCIL_BITS_ARB */,    8,
-            0,
-        };
+        assert(descriptor.dwFlags & 0x20 /* PFD_SUPPORT_OPENGL */);            
+        win32_api->SetPixelFormat(dc, pixel_format, &descriptor);
+    }
+}
+
+static Win32Window win32_open_window_init_with_opengl(char *title, int width, int height, Win32Api_WNDPROC wndproc)
+{
+    Win32Window window = {0};
+    window.wnd = win32_create_window(title, width, height, wndproc);
+    if (window.wnd)
+    {
+        window.dc = win32_api->GetDC(window.wnd);
+        
+        win32_set_pixel_format(window.dc);
 
         #if INTERNAL_BUILD
             #define CONTEXT_FLAGS   0x0001 /* WGL_CONTEXT_DEBUG_BIT_ARB */
@@ -135,23 +107,17 @@ static Win32Window win32_open_window_init_with_opengl(char *title, i32 width, i3
             0,
         };
 
-        win32_init_opengl_extensions();
+        window.rc = win32_create_context(window.dc, context_attribs);
 
         Win32Api_RECT rect;
-        win32_api->GetClientRect(result.wnd, &rect);
+        win32_api->GetClientRect(window.wnd, &rect);
 
-        i32 client_width = rect.right - rect.left;
-        i32 client_height = rect.bottom - rect.top;
+        window.width = rect.right - rect.left;
+        window.height = rect.bottom - rect.top;
 
-        result.dc = win32_api->GetDC(result.wnd);
-        result.rc = win32_opengl_create_context(result.dc, pixel_format_attribs, context_attribs);
-        result.width = client_width;
-        result.height = client_height;
-
-        win32_api->wglMakeCurrent(result.dc, result.rc);
+        win32_api->wglMakeCurrent(window.dc, window.rc);
     }
-
-    return result;
+    return window;
 }
 
 inline f32 win32_get_time()
@@ -554,6 +520,36 @@ static void win32_init_rawinput(Win32State *state)
     assert(registered);
 }
 
+static void win32_init_audio(Win32State *state)
+{
+    Win32Api_WAVEFORMATEX audio_format = { 3 /* WAVE_FORMAT_IEEE_FLOAT */, 2, 44100, 44100 * 8, 8, 32, 0 };
+    u64 buffer_duration = 40 * 1000 * 10;
+
+    Win32Api_IMMDeviceEnumerator *device_enumerator;
+    Win32Api_IMMDevice *audio_device;
+    Win32Api_IAudioClient *audio_client;
+    Win32Api_IAudioRenderClient *audio_render;
+
+    win32_api->CoInitializeEx(0, 0 /* COINITBASE_MULTITHREADED */);
+
+    if (win32_api->CoCreateInstance(&Win32Api_uuid_MMDeviceEnumerator, 0, 0x1 /* CLSCTX_INPROC_SERVER */, &Win32Api_uuid_IMMDeviceEnumerator, (void **)&device_enumerator) >= 0)
+    {
+        if (device_enumerator->vtbl->GetDefaultAudioEndpoint(device_enumerator, 0 /* eRender */, 0 /* eConsole */, (void **)&audio_device) >= 0)
+        {
+            if (audio_device->vtbl->Activate(audio_device, &WIn32Api_uuid_IAudioClient, 0x1 /* CLSCTX_INPROC_SERVER */, 0, (void **)&audio_client) >= 0)
+            {
+                int flags = 0x00040000 /* AUDCLNT_STREAMFLAGS_EVENTCALLBACK */ 
+                          | 0x00100000 /* AUDCLNT_STREAMFLAGS_RATEADJUST */ 
+                          | 0x80000000 /* AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM */;
+                if (audio_client->vtbl->Initialize(audio_client, 0 /* AUDCLNT_SHAREMODE_SHARED */, flags, buffer_duration, 0, &audio_format, 0) >= 0)
+                {
+                    
+                }
+            }
+        }
+    }
+}
+
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, int cmd_show)
 {
     Win32State *state = win32_state;
@@ -561,6 +557,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
     win32_init_win32_api(win32_api);
     win32_init_exe_path(state);
     win32_init_rawinput(state);
+    win32_init_audio(state);
 
     state->memory_sentinel.prev = &state->memory_sentinel;
     state->memory_sentinel.next = &state->memory_sentinel;
@@ -576,10 +573,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
         app_memory->platform.get_memory_stats = win32_get_memory_stats;
         app_memory->platform.init_opengl = win32_init_opengl;
 
-        if (win32_api->wglSwapIntervalEXT)
-        {
-            win32_api->wglSwapIntervalEXT(1);
-        }
+        win32_set_vsync(true);
         
         win32_load_app_dll(state);
 
