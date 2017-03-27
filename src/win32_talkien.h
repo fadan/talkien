@@ -1,5 +1,6 @@
 typedef intptr (__stdcall *Win32Api_WNDPROC)(void *wnd, unsigned int msg, uintptr wparam, intptr lparam);
 typedef intptr (__stdcall *Win32Api_PROC)();
+typedef int (__stdcall *Win32Api_THREAD_START_ROUTINE)(void *param);
 
 typedef Win32Api_PROC (__stdcall Win32GetProcAddress)(void *module, char *proc);
 typedef void * (__stdcall Win32LoadLibrary)(char *lib);
@@ -240,14 +241,14 @@ struct Win32Api_GUID
 
 struct Win32Api_IMMDeviceEnumeratorVtbl
 {
-    void (*QueryInterface)();
-    void (*AddRef)();
-    void (*Release)();
-    void (*EnumAudioEndpoints)();
+    void (*f1)(); // QueryInterface
+    void (*f2)(); // AddRef
+    unsigned int (__stdcall *Release)(void *device_enumerator);
+    void (*f3)(); // EnumAudioEndpoints
     int (__stdcall *GetDefaultAudioEndpoint)(void *device_enum, int data_flow, int role, void **endpoint);
-    void (*GetDevice)();
-    void (*RegisterEndpointNotificationCallback)();
-    void (*UnregisterEndpointNotificationCallback)();
+    void (*f4)(); // GetDevice
+    void (*f5)(); // RegisterEndpointNotificationCallback
+    void (*f6)(); // UnregisterEndpointNotificationCallback
 };
 
 struct Win32Api_IMMDeviceEnumerator
@@ -278,13 +279,13 @@ struct Win32Api_IMMDeviceEnumerator
 
 struct Win32Api_IMMDeviceVtbl
 {
-    void (*QueryInterface)();
-    void (*AddRef)();
-    void (*Release)();
+    void (*f1)(); // QueryInterface
+    void (*f2)(); // AddRef
+    unsigned int (__stdcall *Release)(void *device);
     int (__stdcall *Activate)(void *device, void *iid, int cls_ctx, struct tagPROPVARIANT *activation_params, void **interface);
-    void (*OpenPropertyStore)();
-    void (*GetId)();
-    void (*GetState)();
+    void (*f3)(); // OpenPropertyStore
+    void (*f4)(); // GetId
+    void (*f5)(); // GetState
 };
 
 struct Win32Api_IMMDevice
@@ -331,19 +332,19 @@ struct Win32Api_IMMDevice
 
 struct Win32Api_IAudioClientVtbl
 {
-    void (*QueryInterface)();
-    void (*AddRef)();
-    void (*Release)();
+    void (*f1)(); // QueryInterface
+    void (*f2)(); // AddRef
+    void (*f3)(); // Release
     int (__stdcall *Initialize)(void *client, int share_mode, int stream_flags, u64 buffer_duration, u64 periodicity, Win32Api_WAVEFORMATEX *format, void *audio_session_guid);
-    int (__stdcall *GetBufferSize)(void *client, unsigned int num_buffer_frames);
-    void (*GetStreamLatency)();
-    int (__stdcall *GetCurrentPadding)(void *client, unsigned int num_padding_frames);
-    void (*IsFormatSupported)();
-    void (*GetMixFormat)();
-    void (*GetDevicePeriod)();
+    int (__stdcall *GetBufferSize)(void *client, unsigned int *num_buffer_frames);
+    void (*f4)(); // GetStreamLatency
+    int (__stdcall *GetCurrentPadding)(void *client, unsigned int *num_padding_frames);
+    void (*f5)(); // IsFormatSupported
+    void (*f6)(); // GetMixFormat
+    void (*f7)(); // GetDevicePeriod
     int (__stdcall *Start)(void *client);
     int (__stdcall *Stop)(void *client);
-    void (*Reset)();
+    void (*f8)(); // Reset
     int (__stdcall *SetEventHandle)(void *client, void *event_handle);
     int (__stdcall *GetService)(void *client, Win32Api_GUID *riid, void **ppv);
 };
@@ -372,11 +373,11 @@ struct Win32Api_IAudioClient
 
 struct Win32Api_IAudioRenderClientVtbl
 {
-    void (*QueryInterface)();
-    void (*AddRef)();
-    void (*Release)();
-    void (*GetBuffer)(void *client, unsigned int num_frames_written, unsigned char **data);
-    void (*ReleaseBuffer)(void *client, unsigned int num_frames_written, int flags);
+    void (*f1)(); // QueryInterface
+    void (*f2)(); // AddRef
+    void (*f3)(); // Release
+    int (__stdcall *GetBuffer)(void *client, unsigned int num_frames_requested, unsigned char **data);
+    int (__stdcall *ReleaseBuffer)(void *client, unsigned int num_frames_written, int flags);
 };
 
 struct Win32Api_IAudioRenderClient
@@ -387,17 +388,22 @@ struct Win32Api_IAudioRenderClient
 static Win32Api_GUID Win32Api_uuid_IMMDeviceEnumerator = { 0xA95664D2, 0x9614, 0x4F35, 0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6 };
 static Win32Api_GUID Win32Api_uuid_MMDeviceEnumerator  = { 0xBCDE0395, 0xE52F, 0x467C, 0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E };
 static Win32Api_GUID WIn32Api_uuid_IAudioClient        = { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
+static Win32Api_GUID Win32Api_uuid_IAudioRenderClient  = { 0xF294ACFC, 0x3146, 0x4483, 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2 };
 
 #define WIN32_API_FUNCTION_LIST \
     WIN32_API(kernel32, CompareFileTime, int __stdcall, (Win32Api_FILETIME *filetime1, Win32Api_FILETIME *filetime2)) \
     WIN32_API(kernel32, CopyFileA, int __stdcall, (char *filename, char *new_filename, int fail_if_exists)) \
+    WIN32_API(kernel32, CreateEventA, void * __stdcall, (void *event_attributes, int manual_reset, int initial_state, char *name)) \
+    WIN32_API(kernel32, CreateThread, void * __stdcall, (void *thread_attributes, unsigned int stack_size, Win32Api_THREAD_START_ROUTINE proc, void *param, unsigned int creation_flags, unsigned int *thread_id)) \
     WIN32_API(kernel32, GetFileAttributesExA, int __stdcall, (char *filename, Win32Api_GET_FILEEX_INFO_LEVELS info_level_id, void *file_info)) \
     WIN32_API(kernel32, GetModuleFileNameA, unsigned int __stdcall, (void *module, char *filename, unsigned int size)) \
     WIN32_API(kernel32, GetModuleHandleA, void * __stdcall, (char *module)) \
     WIN32_API(kernel32, QueryPerformanceCounter, int __stdcall, (Win32Api_LARGE_INTEGER *perf_count)) \
     WIN32_API(kernel32, QueryPerformanceFrequency, int __stdcall, (Win32Api_LARGE_INTEGER *freq)) \
+    WIN32_API(kernel32, SetThreadPriority, int __stdcall, (void *thread, int priority)) \
     WIN32_API(kernel32, VirtualAlloc, void * __stdcall, (void *addr, usize size, unsigned int alloc_type, unsigned int protect)) \
     WIN32_API(kernel32, VirtualFree, int __stdcall, (void *addr, usize size, usize free_type)) \
+    WIN32_API(kernel32, WaitForSingleObject, unsigned int __stdcall, (void *handle, unsigned int milliseconds)) \
     \
     WIN32_API(ole32, CoCreateInstance, int __stdcall, (Win32Api_GUID *rclsid, void *unk_outer, int cls_context, Win32Api_GUID *riid, void **ppv)) \
     WIN32_API(ole32, CoInitializeEx, int __stdcall, (void *reserved, int co_init)) \
@@ -483,6 +489,8 @@ struct Win32State
     Mutex memory_mutex;
     Win32MemoryBlock memory_sentinel;
 
+    Mutex app_reload_mutex;
+
     u32 exe_filename_length;
     u32 exe_path_length;
     char exe_filename[MAX_FILENAME_SIZE];
@@ -493,7 +501,15 @@ struct Win32State
     void *app_dll;
     b32 app_dll_reloaded;
     Win32Api_FILETIME app_dll_last_write;
+
     UpdateAndRender *update_and_render;
+    FillSoundBuffer *fill_sound_buffer;
 
     b32 pause_scan_code_read;
+
+    u32 sound_sample_rate;
+    b32 fill_sound_buffer_finished;
+
+    Win32Api_IAudioClient *audio_client;
+    Win32Api_IAudioRenderClient *audio_render;
 };

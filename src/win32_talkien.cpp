@@ -468,12 +468,17 @@ static void win32_load_app_dll(Win32State *state)
         if (state->app_dll)
         {
             state->update_and_render = (UpdateAndRender *)win32_get_proc_address(state->app_dll, "update_and_render");
+            state->fill_sound_buffer = (FillSoundBuffer *)win32_get_proc_address(state->app_dll, "fill_sound_buffer");
         }
     }
 
     if (!state->update_and_render)
     {
         state->update_and_render = update_and_render_stub;
+    }
+    if (!state->fill_sound_buffer)
+    {
+        state->fill_sound_buffer = fill_sound_buffer_stub;
     }
 }
 
@@ -520,15 +525,61 @@ static void win32_init_rawinput(Win32State *state)
     assert(registered);
 }
 
+static int win32_sound_thread_proc(void *param)
+{
+    void *buffer_ready_event = win32_api->CreateEventA(0, 0, 0, 0);
+    if (win32_state->audio_client->vtbl->SetEventHandle(win32_state->audio_client, buffer_ready_event) >= 0)
+    {
+        unsigned int buffer_frame_count;
+        if (win32_state->audio_client->vtbl->GetBufferSize(win32_state->audio_client, &buffer_frame_count) >= 0)
+        {
+            if (win32_state->audio_client->vtbl->Start(win32_state->audio_client) >= 0)
+            {
+                for (;;)
+                {
+                    if (win32_api->WaitForSingleObject(buffer_ready_event, 0xFFFFFFFF /* INFINITE */) != 0 /* WAIT_OBJECT_0 */)
+                    {
+                        break;
+                    }
+
+                    unsigned int padding_frame_count;
+                    if (win32_state->audio_client->vtbl->GetCurrentPadding(win32_state->audio_client, &padding_frame_count) < 0)
+                    {
+                        break;
+                    }
+
+                    f32 *buffer;
+                    unsigned int fill_frame_count = buffer_frame_count - padding_frame_count;
+                    if (win32_state->audio_render->vtbl->GetBuffer(win32_state->audio_render, fill_frame_count, (unsigned char **)&buffer) < 0)
+                    {
+                        break;
+                    }
+
+                    u32 num_floats = fill_frame_count * 2;
+
+                    // TODO(dan): when the main thread reloads the app dll it should wait for the fill_sound_buffer to finish before reloads it
+                    win32_state->fill_sound_buffer(buffer, num_floats);
+
+                    if (win32_state->audio_render->vtbl->ReleaseBuffer(win32_state->audio_render, fill_frame_count, 0) < 0)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    win32_state->audio_client->vtbl->Stop(win32_state->audio_client);
+    return 0;
+}
+
 static void win32_init_audio(Win32State *state)
 {
     Win32Api_WAVEFORMATEX audio_format = { 3 /* WAVE_FORMAT_IEEE_FLOAT */, 2, 44100, 44100 * 8, 8, 32, 0 };
     u64 buffer_duration = 40 * 1000 * 10;
 
-    Win32Api_IMMDeviceEnumerator *device_enumerator;
-    Win32Api_IMMDevice *audio_device;
-    Win32Api_IAudioClient *audio_client;
-    Win32Api_IAudioRenderClient *audio_render;
+    Win32Api_IMMDeviceEnumerator *device_enumerator = 0;
+    Win32Api_IMMDevice *audio_device = 0;
 
     win32_api->CoInitializeEx(0, 0 /* COINITBASE_MULTITHREADED */);
 
@@ -536,17 +587,35 @@ static void win32_init_audio(Win32State *state)
     {
         if (device_enumerator->vtbl->GetDefaultAudioEndpoint(device_enumerator, 0 /* eRender */, 0 /* eConsole */, (void **)&audio_device) >= 0)
         {
-            if (audio_device->vtbl->Activate(audio_device, &WIn32Api_uuid_IAudioClient, 0x1 /* CLSCTX_INPROC_SERVER */, 0, (void **)&audio_client) >= 0)
+            if (audio_device->vtbl->Activate(audio_device, &WIn32Api_uuid_IAudioClient, 0x1 /* CLSCTX_INPROC_SERVER */, 0, (void **)&state->audio_client) >= 0)
             {
                 int flags = 0x00040000 /* AUDCLNT_STREAMFLAGS_EVENTCALLBACK */ 
                           | 0x00100000 /* AUDCLNT_STREAMFLAGS_RATEADJUST */ 
                           | 0x80000000 /* AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM */;
-                if (audio_client->vtbl->Initialize(audio_client, 0 /* AUDCLNT_SHAREMODE_SHARED */, flags, buffer_duration, 0, &audio_format, 0) >= 0)
+                if (state->audio_client->vtbl->Initialize(state->audio_client, 0 /* AUDCLNT_SHAREMODE_SHARED */, flags, buffer_duration, 0, &audio_format, 0) >= 0)
                 {
-                    
+                    if (state->audio_client->vtbl->GetService(state->audio_client, &Win32Api_uuid_IAudioRenderClient, (void **)&state->audio_render) >= 0)
+                    {
+                        state->sound_sample_rate = audio_format.nSamplesPerSec;
+
+                        void *thread = win32_api->CreateThread(0, 0, win32_sound_thread_proc, 0, 0, 0);
+                        if (thread)
+                        {
+                            win32_api->SetThreadPriority(thread, 2 /* THREAD_PRIORITY_HIGHEST */);
+                        }
+                    }
                 }
             }
         }
+    }
+
+    if (device_enumerator)
+    {
+        device_enumerator->vtbl->Release(device_enumerator);
+    }
+    if (audio_device)
+    {
+        audio_device->vtbl->Release(audio_device);
     }
 }
 
@@ -557,6 +626,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
     win32_init_win32_api(win32_api);
     win32_init_exe_path(state);
     win32_init_rawinput(state);
+    win32_load_app_dll(state);
     win32_init_audio(state);
 
     state->memory_sentinel.prev = &state->memory_sentinel;
@@ -574,8 +644,6 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
         app_memory->platform.init_opengl = win32_init_opengl;
 
         win32_set_vsync(true);
-        
-        win32_load_app_dll(state);
 
         f32 t0 = win32_get_time();
         f32 dt = 0;

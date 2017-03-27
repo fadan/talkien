@@ -451,3 +451,13 @@ typedef UPDATE_AND_RENDER(UpdateAndRender);
 static UPDATE_AND_RENDER(update_and_render_stub)
 {
 }
+
+#define FILL_SOUND_BUFFER(name) void name(f32 *buffer, u32 num_samples)
+typedef FILL_SOUND_BUFFER(FillSoundBuffer);
+static FILL_SOUND_BUFFER(fill_sound_buffer_stub)
+{
+    for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+    {
+        buffer[sample_index] = 0;
+    }
+}
