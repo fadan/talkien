@@ -83,7 +83,7 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
     static i32 pos;
     for (u32 sample_index = 0; sample_index < num_samples; sample_index += 2)
     {
-        buffer[sample_index + 0] = sinf(pos++ * 2 * 3.141592f * 40.0f / 44100.0f) / 150;
+        buffer[sample_index + 0] = sinf(pos++ * 2 * 3.141592f * 40.0f / 44100.0f) / 20;
         buffer[sample_index + 1] = buffer[sample_index];
     }
 }

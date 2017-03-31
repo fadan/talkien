@@ -489,8 +489,6 @@ struct Win32State
     Mutex memory_mutex;
     Win32MemoryBlock memory_sentinel;
 
-    Mutex app_reload_mutex;
-
     u32 exe_filename_length;
     u32 exe_path_length;
     char exe_filename[MAX_FILENAME_SIZE];

@@ -110,12 +110,26 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 
 #if COMPILER == COMPILER_MSVC
     extern "C" __int64 _InterlockedExchangeAdd64(__int64 volatile *addend, __int64 value);
+    extern "C" long _InterlockedExchange(long volatile *target, long value);
+    extern "C" long _InterlockedCompareExchange(long volatile *destination, long exchange, long comparand); 
     extern "C" void _mm_pause();
 
     inline u64 atomic_add_u64(u64 volatile *value, u64 addend)
     {
         // NOTE(dan): result = current value without addend
         u64 result = _InterlockedExchangeAdd64((__int64 volatile *)value, addend);
+        return result;
+    }
+
+    inline u32 atomic_exchange_u32(u32 volatile *target, u32 value)
+    {
+        u32 result = _InterlockedExchange((long volatile *)target, value);
+        return result;
+    }
+
+    inline u32 atomic_cmpxchg_u32(u32 volatile *value, u32 volatile new_value, u32 expected)
+    {
+        u32 result = _InterlockedCompareExchange((long volatile *)value, new_value, expected);
         return result;
     }
 #endif

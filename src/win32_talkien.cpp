@@ -491,6 +491,7 @@ static void win32_unload_app_dll(Win32State *state)
     }
 
     state->update_and_render = update_and_render_stub;
+    state->fill_sound_buffer = fill_sound_buffer_stub;
 }
 
 static void win32_reload_app_dll_if_needed(Win32State *state)
@@ -556,8 +557,6 @@ static int win32_sound_thread_proc(void *param)
                     }
 
                     u32 num_floats = fill_frame_count * 2;
-
-                    // TODO(dan): when the main thread reloads the app dll it should wait for the fill_sound_buffer to finish before reloads it
                     win32_state->fill_sound_buffer(buffer, num_floats);
 
                     if (win32_state->audio_render->vtbl->ReleaseBuffer(win32_state->audio_render, fill_frame_count, 0) < 0)
