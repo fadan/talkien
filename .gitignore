@@ -2,5 +2,6 @@
 build/* 
 Debug/*
 *.sdf
+*.suo
 *.opensdf
 *.sublime-workspace
