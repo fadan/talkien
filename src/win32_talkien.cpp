@@ -557,7 +557,7 @@ static int win32_sound_thread_proc(void *param)
                     }
 
                     u32 num_floats = fill_frame_count * 2;
-                    win32_state->fill_sound_buffer(buffer, num_floats);
+                    win32_state->fill_sound_buffer(&win32_state->app_memory, buffer, num_floats);
 
                     if (win32_state->audio_render->vtbl->ReleaseBuffer(win32_state->audio_render, fill_frame_count, 0) < 0)
                     {
@@ -567,7 +567,6 @@ static int win32_sound_thread_proc(void *param)
             }
         }
     }
-
     win32_state->audio_client->vtbl->Stop(win32_state->audio_client);
     return 0;
 }
@@ -575,7 +574,7 @@ static int win32_sound_thread_proc(void *param)
 static void win32_init_audio(Win32State *state)
 {
     Win32Api_WAVEFORMATEX audio_format = { 3 /* WAVE_FORMAT_IEEE_FLOAT */, 2, 44100, 44100 * 8, 8, 32, 0 };
-    u64 buffer_duration = 40 * 1000 * 10;
+    u64 buffer_duration = 20 * 1000 * 10;
 
     Win32Api_IMMDeviceEnumerator *device_enumerator = 0;
     Win32Api_IMMDevice *audio_device = 0;
@@ -620,48 +619,43 @@ static void win32_init_audio(Win32State *state)
 
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, int cmd_show)
 {
-    Win32State *state = win32_state;
+    win32_state->app_memory.platform.allocate = win32_allocate;
+    win32_state->app_memory.platform.deallocate = win32_deallocate;
+    win32_state->app_memory.platform.get_memory_stats = win32_get_memory_stats;
+    win32_state->app_memory.platform.init_opengl = win32_init_opengl;
+
+    win32_state->memory_sentinel.prev = &win32_state->memory_sentinel;
+    win32_state->memory_sentinel.next = &win32_state->memory_sentinel;
 
     win32_init_win32_api(win32_api);
-    win32_init_exe_path(state);
-    win32_init_rawinput(state);
-    win32_load_app_dll(state);
-    win32_init_audio(state);
+    win32_init_exe_path(win32_state);
+    win32_init_rawinput(win32_state);
+    win32_load_app_dll(win32_state);
+    win32_init_audio(win32_state);
 
-    state->memory_sentinel.prev = &state->memory_sentinel;
-    state->memory_sentinel.next = &state->memory_sentinel;
-
-    state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
-    if (state->window.rc)
+    win32_state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
+    if (win32_state->window.rc)
     {
-        PlatformInput *input = &state->input;
-
-        AppMemory *app_memory = &win32_state->app_memory;
-        app_memory->platform.allocate = win32_allocate;
-        app_memory->platform.deallocate = win32_deallocate;
-        app_memory->platform.get_memory_stats = win32_get_memory_stats;
-        app_memory->platform.init_opengl = win32_init_opengl;
-
         win32_set_vsync(true);
 
         f32 t0 = win32_get_time();
         f32 dt = 0;
 
-        state->running = true;
-        while (state->running)
+        win32_state->running = true;
+        while (win32_state->running)
         {
-            win32_update_input(input, dt);
+            win32_update_input(&win32_state->input, dt);
             
-            state->update_and_render(app_memory, input, state->window.width, state->window.height);
+            win32_state->update_and_render(&win32_state->app_memory, &win32_state->input, win32_state->window.width, win32_state->window.height);
 
             win32_reload_app_dll_if_needed(win32_state);
 
-            if (input->quit_requested)
+            if (win32_state->input.quit_requested)
             {
-                state->running = false;
+                win32_state->running = false;
             }
 
-            win32_api->SwapBuffers(state->window.dc);
+            win32_api->SwapBuffers(win32_state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;
             t0 = t1;

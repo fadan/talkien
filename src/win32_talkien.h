@@ -244,11 +244,11 @@ struct Win32Api_IMMDeviceEnumeratorVtbl
     void (*f1)(); // QueryInterface
     void (*f2)(); // AddRef
     unsigned int (__stdcall *Release)(void *device_enumerator);
-    void (*f3)(); // EnumAudioEndpoints
+    void (*f4)(); // EnumAudioEndpoints
     int (__stdcall *GetDefaultAudioEndpoint)(void *device_enum, int data_flow, int role, void **endpoint);
-    void (*f4)(); // GetDevice
-    void (*f5)(); // RegisterEndpointNotificationCallback
-    void (*f6)(); // UnregisterEndpointNotificationCallback
+    void (*f6)(); // GetDevice
+    void (*f7)(); // RegisterEndpointNotificationCallback
+    void (*f8)(); // UnregisterEndpointNotificationCallback
 };
 
 struct Win32Api_IMMDeviceEnumerator
@@ -283,9 +283,9 @@ struct Win32Api_IMMDeviceVtbl
     void (*f2)(); // AddRef
     unsigned int (__stdcall *Release)(void *device);
     int (__stdcall *Activate)(void *device, void *iid, int cls_ctx, struct tagPROPVARIANT *activation_params, void **interface);
-    void (*f3)(); // OpenPropertyStore
-    void (*f4)(); // GetId
-    void (*f5)(); // GetState
+    void (*f5)(); // OpenPropertyStore
+    void (*f6)(); // GetId
+    void (*f7)(); // GetState
 };
 
 struct Win32Api_IMMDevice
@@ -337,14 +337,14 @@ struct Win32Api_IAudioClientVtbl
     void (*f3)(); // Release
     int (__stdcall *Initialize)(void *client, int share_mode, int stream_flags, u64 buffer_duration, u64 periodicity, Win32Api_WAVEFORMATEX *format, void *audio_session_guid);
     int (__stdcall *GetBufferSize)(void *client, unsigned int *num_buffer_frames);
-    void (*f4)(); // GetStreamLatency
+    void (*f6)(); // GetStreamLatency
     int (__stdcall *GetCurrentPadding)(void *client, unsigned int *num_padding_frames);
-    void (*f5)(); // IsFormatSupported
-    void (*f6)(); // GetMixFormat
-    void (*f7)(); // GetDevicePeriod
+    void (*f8)(); // IsFormatSupported
+    void (*f9)(); // GetMixFormat
+    void (*f10)(); // GetDevicePeriod
     int (__stdcall *Start)(void *client);
     int (__stdcall *Stop)(void *client);
-    void (*f8)(); // Reset
+    void (*f13)(); // Reset
     int (__stdcall *SetEventHandle)(void *client, void *event_handle);
     int (__stdcall *GetService)(void *client, Win32Api_GUID *riid, void **ppv);
 };
@@ -391,6 +391,11 @@ static Win32Api_GUID WIn32Api_uuid_IAudioClient        = { 0x1CB9AD4C, 0xDBFA, 0
 static Win32Api_GUID Win32Api_uuid_IAudioRenderClient  = { 0xF294ACFC, 0x3146, 0x4483, 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2 };
 
 #define WIN32_API_FUNCTION_LIST \
+    WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
+    WIN32_API(gdi32, DescribePixelFormat, int __stdcall, (void *dc, int pixel_format, unsigned int bytes, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
+    WIN32_API(gdi32, SetPixelFormat, int __stdcall, (void *dc, int format, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
+    WIN32_API(gdi32, SwapBuffers, int __stdcall, (void *dc)) \
+    \
     WIN32_API(kernel32, CompareFileTime, int __stdcall, (Win32Api_FILETIME *filetime1, Win32Api_FILETIME *filetime2)) \
     WIN32_API(kernel32, CopyFileA, int __stdcall, (char *filename, char *new_filename, int fail_if_exists)) \
     WIN32_API(kernel32, CreateEventA, void * __stdcall, (void *event_attributes, int manual_reset, int initial_state, char *name)) \
@@ -407,11 +412,6 @@ static Win32Api_GUID Win32Api_uuid_IAudioRenderClient  = { 0xF294ACFC, 0x3146, 0
     \
     WIN32_API(ole32, CoCreateInstance, int __stdcall, (Win32Api_GUID *rclsid, void *unk_outer, int cls_context, Win32Api_GUID *riid, void **ppv)) \
     WIN32_API(ole32, CoInitializeEx, int __stdcall, (void *reserved, int co_init)) \
-    \
-    WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
-    WIN32_API(gdi32, DescribePixelFormat, int __stdcall, (void *dc, int pixel_format, unsigned int bytes, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
-    WIN32_API(gdi32, SetPixelFormat, int __stdcall, (void *dc, int format, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
-    WIN32_API(gdi32, SwapBuffers, int __stdcall, (void *dc)) \
     \
     WIN32_API(opengl32, wglCreateContext, void * __stdcall, (void *dc)) \
     WIN32_API(opengl32, wglDeleteContext, int __stdcall, (void *rc)) \
@@ -453,6 +453,8 @@ static void win32_init_win32_api(Win32Api *win32_api)
     void *opengl32 = win32_load_library("opengl32.dll");
     void *kernel32 = win32_load_library("kernel32.dll");
     void *ole32 = win32_load_library("ole32.dll");
+
+    void *avrt = win32_load_library("avrt.dll");
     
     #define WIN32_API(dll, name, return_type, params) win32_api->name = (Win32Api_##name *)win32_get_proc_address(dll, #name);
     WIN32_API_FUNCTION_LIST

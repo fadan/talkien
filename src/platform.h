@@ -290,6 +290,7 @@ extern Platform platform;
 struct AppMemory
 {
     struct AppState *app_state;
+    struct AudioState *audio_state;
     b32 app_dll_reloaded;
 
     Platform platform;
@@ -466,7 +467,7 @@ static UPDATE_AND_RENDER(update_and_render_stub)
 {
 }
 
-#define FILL_SOUND_BUFFER(name) void name(f32 *buffer, u32 num_samples)
+#define FILL_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples)
 typedef FILL_SOUND_BUFFER(FillSoundBuffer);
 static FILL_SOUND_BUFFER(fill_sound_buffer_stub)
 {
