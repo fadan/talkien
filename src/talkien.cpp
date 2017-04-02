@@ -2,14 +2,12 @@
 #include "opengl.h"
 #include "ui.cpp"
 
-#include <math.h>
-
 struct AudioState
 {
     MemoryStack audio_memory;
 
     u32 last_mix_length;
-    f32 sin_pos;
+    f64 sin_pos;
 };
 
 struct AppState
@@ -76,7 +74,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             ImGui::Text("Vertices: %d Indices: %3d  ", global_imgui->MetricsRenderVertices, global_imgui->MetricsRenderIndices);
             ImGui::Text("Windows: %d ", global_imgui->MetricsActiveWindows);
             ImGui::Text("Memory blocks: %d Size: %dK Used: %db ", memory_stats.num_memblocks, memory_stats.total_size/KB, memory_stats.total_used);
-            ImGui::Text("Mix length: %f (%d)", memory->audio_state->last_mix_length / 44100.0f, memory->audio_state->last_mix_length);
+            // ImGui::Text("Mix length: %f (%d)", memory->audio_state->last_mix_length / 44100.0f, memory->audio_state->last_mix_length);
             ImGui::Text("Frame time: %.2f ms/f ", 1000.0f / global_imgui->Framerate);
         }
         ImGui::End();
@@ -86,6 +84,8 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
     }
     end_ui();
 }
+
+#include <math.h>
 
 extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 {
@@ -101,7 +101,7 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
     {
         f32 s = 0.0f;
 
-        s += (f32)sinf(audio_state->sin_pos * 2.0f * 3.141592f * 100.0f / 44100.0f);
+        s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 100.0f / 44100.0f);
         // s += (f32)sinf(pos * 2.0f * 3.141592f * 200.0f / 44100.0f) / 2.0f;
         // s += (f32)sinf(pos * 2.0f * 3.141592f * 300.0f / 44100.0f) / 3.0f;
         // s += (f32)sinf(pos * 2.0f * 3.141592f * 400.0f / 44100.0f) / 4.0f;
@@ -111,6 +111,7 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
         // s += (f32)sinf(pos * 2.0f * 3.141592f * 800.0f / 44100.0f) / 13.0f;
 
         buffer[sample_index + 1] = buffer[sample_index] = s / 30.0f;
+
         ++audio_state->sin_pos;
     }
 

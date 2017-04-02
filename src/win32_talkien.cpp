@@ -526,8 +526,78 @@ static void win32_init_rawinput(Win32State *state)
     assert(registered);
 }
 
+//
+
+#define MAX_AUDIO_BUFFER_CHANNEL (500 * 44100 / 1000)           // NOTE(dan): 500 ms buffer
+#define MAX_AUDIO_BUFFER         (MAX_AUDIO_BUFFER_CHANNEL * 2) // NOTE(dan): 2 channels
+
+static float audio_buffer[MAX_AUDIO_BUFFER];
+static unsigned int volatile audio_read_pos;
+
+static void win32_fill_sound_buffer(float *buffer, unsigned int num_floats)
+{
+    unsigned int read_pos = audio_read_pos;
+    for (unsigned int float_index = 0; float_index < num_floats; float_index += 2)
+    {
+        buffer[float_index]     = audio_buffer[read_pos];
+        buffer[float_index + 1] = audio_buffer[read_pos + 1];
+
+        read_pos += 2;
+
+        if (read_pos >= MAX_AUDIO_BUFFER)
+        {
+            read_pos = 0;
+        }
+    }
+    audio_read_pos = read_pos;
+}
+
+//
+
+static float audio_temp_buffer[MAX_AUDIO_BUFFER];
+static int audio_write_start_pos;
+static int audio_write_end_pos;
+static int prev_audio_write_end_pos;
+static int prev_audio_read_pos;
+
+static void win32_update_audio()
+{
+    unsigned int num_floats = (audio_write_end_pos - audio_write_start_pos + MAX_AUDIO_BUFFER) % MAX_AUDIO_BUFFER;
+    prev_audio_write_end_pos = audio_write_end_pos;
+
+    win32_state->fill_sound_buffer(&win32_state->app_memory, audio_temp_buffer, num_floats);
+
+    int cur_read_pos = audio_read_pos;
+    int advanced = (cur_read_pos - prev_audio_read_pos + MAX_AUDIO_BUFFER) % MAX_AUDIO_BUFFER;
+
+    audio_write_start_pos = (audio_write_start_pos + advanced + MAX_AUDIO_BUFFER) % MAX_AUDIO_BUFFER;
+    audio_write_end_pos   = (audio_write_end_pos   + advanced + MAX_AUDIO_BUFFER) % MAX_AUDIO_BUFFER;
+
+    prev_audio_read_pos = cur_read_pos;
+
+    unsigned int write_pos = audio_write_start_pos;
+    for (unsigned int float_index = 0; float_index < num_floats; float_index += 2)
+    {
+        audio_buffer[write_pos]     = audio_temp_buffer[float_index];
+        audio_buffer[write_pos + 1] = audio_temp_buffer[float_index + 1];
+
+        write_pos += 2;
+
+        if (write_pos >= MAX_AUDIO_BUFFER)
+        {
+            write_pos = 0;
+        }
+    }
+}
+
 static int win32_sound_thread_proc(void *param)
 {
+    audio_read_pos = 0;
+    prev_audio_read_pos = 0;
+    audio_write_end_pos = 0;
+    audio_write_start_pos = (50 * 44100 / 1000) * 2;
+    prev_audio_write_end_pos = audio_write_start_pos;
+
     void *buffer_ready_event = win32_api->CreateEventA(0, 0, 0, 0);
     if (win32_state->audio_client->vtbl->SetEventHandle(win32_state->audio_client, buffer_ready_event) >= 0)
     {
@@ -557,7 +627,9 @@ static int win32_sound_thread_proc(void *param)
                     }
 
                     u32 num_floats = fill_frame_count * 2;
-                    win32_state->fill_sound_buffer(&win32_state->app_memory, buffer, num_floats);
+                    win32_fill_sound_buffer(buffer, num_floats);
+
+                    // win32_state->fill_sound_buffer(&win32_state->app_memory, buffer, num_floats);
 
                     if (win32_state->audio_render->vtbl->ReleaseBuffer(win32_state->audio_render, fill_frame_count, 0) < 0)
                     {
@@ -647,6 +719,8 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
             win32_update_input(&win32_state->input, dt);
             
             win32_state->update_and_render(&win32_state->app_memory, &win32_state->input, win32_state->window.width, win32_state->window.height);
+
+            win32_update_audio();
 
             win32_reload_app_dll_if_needed(win32_state);
 

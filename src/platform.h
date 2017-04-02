@@ -114,6 +114,8 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
     extern "C" long _InterlockedCompareExchange(long volatile *destination, long exchange, long comparand); 
     extern "C" void _mm_pause();
 
+    extern "C" void *memset(void *target, i32 value, usize target_size);
+
     inline u64 atomic_add_u64(u64 volatile *value, u64 addend)
     {
         // NOTE(dan): result = current value without addend
