@@ -85,7 +85,178 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
     end_ui();
 }
 
+// NOTE(dan): test audio
+
+#define FOURCC(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+#define WAVE_FORMAT_PCM 0x0001
+
+enum RiffChunkID
+{
+    RiffChunkID_Riff = FOURCC('R', 'I', 'F', 'F'),
+    RiffChunkID_Wave = FOURCC('W', 'A', 'V', 'E'),
+    RiffChunkID_Fmt  = FOURCC('f', 'm', 't', ' '),
+    RiffChunkID_Data = FOURCC('d', 'a', 't', 'a'),
+};
+
+#pragma pack(push, 1)
+struct RiffChunk
+{
+    u32 id;
+    u32 size;
+};
+
+struct RiffHeader
+{
+    RiffChunk chunk;
+    u32 format;
+};
+
+struct WaveFormatChunk
+{
+    u16 format_tag;
+    u16 num_channels;
+    u32 samples_per_sec;
+    u32 avg_bytes_per_sec;
+    u16 block_align;
+};
+
+struct WaveFormatPCMChunk
+{
+    u16 bits_per_sample;
+};
+#pragma pack(pop)
+
+struct RiffIterator
+{
+    u8 *at;
+    u8 *end;
+};
+
+inline RiffIterator get_riff_iterator(RiffHeader *header)
+{
+    RiffIterator iterator = {0};
+    iterator.at = (u8 *)(header + 1);
+    iterator.end = iterator.at + header->chunk.size - 4;
+    return iterator;
+}
+
+inline b32 riff_iterator_valid(RiffIterator iterator)
+{
+    b32 valid = (iterator.at < iterator.end);
+    return valid;
+}
+
+inline RiffIterator next_riff_iterator(RiffIterator iterator)
+{
+    RiffChunk *chunk = (RiffChunk *)iterator.at;
+    u32 chunk_size = (chunk->size + 1) & ~1;
+
+    iterator.at += sizeof(RiffChunk) + chunk_size;
+    return iterator;
+}
+
+struct LoadedWav
+{
+    u16 num_channels;
+    u16 bits_per_sample;
+    u32 samples_per_sec;
+    u32 num_samples;
+    i16 *samples;
+};
+
+static LoadedWav load_wav(void *memory, usize size)
+{
+    LoadedWav wav = {0};
+    RiffHeader *header = (RiffHeader *)memory;
+    if (header->chunk.id == RiffChunkID_Riff)
+    {
+        if (header->format == RiffChunkID_Wave)
+        {
+            RiffIterator iterator;
+            u32 total_size = 0;
+            u32 sample_size = 0;
+
+            for (iterator = get_riff_iterator(header); riff_iterator_valid(iterator); iterator = next_riff_iterator(iterator))
+            {
+                RiffChunk *chunk = (RiffChunk *)iterator.at;
+
+                switch (chunk->id)
+                {
+                    case RiffChunkID_Fmt:
+                    {
+                        WaveFormatChunk *fmt = (WaveFormatChunk *)(iterator.at + sizeof(RiffChunk));
+                        wav.num_channels = fmt->num_channels;
+                        wav.samples_per_sec = fmt->samples_per_sec;
+
+                        if (fmt->format_tag == WAVE_FORMAT_PCM)
+                        {
+                            WaveFormatPCMChunk *pcm = (WaveFormatPCMChunk *)((u8 *)(fmt + 1));
+                            wav.bits_per_sample = pcm->bits_per_sample;
+                        }
+                    } break;
+
+                    case RiffChunkID_Data:
+                    {
+                        wav.samples = (i16 *)((u8 *)iterator.at + sizeof(RiffChunk));
+                        total_size = chunk->size;
+                    } break;
+                }
+            }
+
+            sample_size = wav.num_channels * (wav.bits_per_sample / 8);
+            if (sample_size > 0)
+            {
+                wav.num_samples = total_size / sample_size;
+            }
+        }
+    }
+    return wav;
+}
+
+#pragma warning(push)
+#pragma warning(disable: 4996)
+
 #include <math.h>
+#include <stdio.h>
+
+
+struct LoadedFile
+{
+    u32 size;
+    void *contents;
+};
+
+
+static LoadedFile load_file(char *filename)
+{
+    LoadedFile file = {0};
+    FILE *handle = fopen(filename, "r");
+    if (handle)
+    {
+        fseek(handle, 0, SEEK_END);
+        file.size = ftell(handle);
+        file.contents = malloc(file.size);
+        fseek(handle, 0, SEEK_SET);
+        fread(file.contents, file.size, 1, handle);
+        fclose(handle);
+    }
+    return file;
+}
+
+static void close_file(LoadedFile file)
+{
+    if (file.contents)
+    {
+        free(file.contents);
+    }
+}
+#pragma warning(pop)
+
+static u32 total_wav_samples;
+static u32 played_wav_samples;
+
+static f32 *wav_channel_0;
+static f32 *wav_channel_1;
 
 extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 {
@@ -97,23 +268,68 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
         audio_state = memory->audio_state = bootstrap_push_struct(AudioState, audio_memory);
     }
 
-    for (u32 sample_index = 0; sample_index < num_samples; sample_index += 2)
+    if (!wav_channel_0 || !wav_channel_1)
     {
-        f32 s = 0.0f;
+        LoadedFile file = load_file("test2.wav");
+        if (file.contents)
+        {
+            LoadedWav wav = load_wav(file.contents, file.size);
 
-        s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 100.0f / 44100.0f);
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 200.0f / 44100.0f) / 2.0f;
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 300.0f / 44100.0f) / 3.0f;
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 400.0f / 44100.0f) / 4.0f;
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 500.0f / 44100.0f) / 5.0f;
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 600.0f / 44100.0f) / 8.0f;
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 700.0f / 44100.0f) / 10.0f;
-        // s += (f32)sinf(pos * 2.0f * 3.141592f * 800.0f / 44100.0f) / 13.0f;
+            total_wav_samples = wav.num_samples;
+            played_wav_samples = 0;
 
-        buffer[sample_index + 1] = buffer[sample_index] = s / 30.0f;
+            wav_channel_0 = push_array(&audio_state->audio_memory, wav.num_samples, f32);
+            wav_channel_1 = push_array(&audio_state->audio_memory, wav.num_samples, f32);
 
-        ++audio_state->sin_pos;
+            i16 *source = (i16 *)wav.samples;
+
+            for (u32 sample_index = 0; sample_index < wav.num_samples; ++sample_index)
+            {
+                wav_channel_0[sample_index] = *source++ / 32767.0f;
+                wav_channel_1[sample_index] = *source++ / 32767.0f;
+            }
+        }
+        close_file(file);
     }
 
-    audio_state->last_mix_length = num_samples / 2;
+#if 1
+    for (u32 float_index = 0; float_index < num_floats/2; ++float_index)
+    {
+        channel_0[float_index] = 0;
+        channel_1[float_index] = 0;
+    }
+#else
+    #if 1
+        u32 num_samples = num_floats / 2;
+
+        f32 *channel0 = wav_channel_0 + played_wav_samples; 
+        f32 *channel1 = wav_channel_1 + played_wav_samples;
+
+        for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+        {
+            channel_0[sample_index] = *channel0++;
+            channel_1[sample_index] = *channel1++;
+        }
+
+        played_wav_samples += num_samples;
+    #else
+        for (u32 float_index = 0; float_index < num_floats/2; ++float_index)
+        {
+            f32 s = 0.0f;
+
+            s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 100.0f / 44100.0f);
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 200.0f / 44100.0f) / 2.0f;
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 300.0f / 44100.0f) / 3.0f;
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 400.0f / 44100.0f) / 4.0f;
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 500.0f / 44100.0f) / 5.0f;
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 600.0f / 44100.0f) / 8.0f;
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 700.0f / 44100.0f) / 10.0f;
+            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 800.0f / 44100.0f) / 13.0f;
+
+            channel_0[float_index] = channel_1[float_index] = s / 30.0f;
+
+            ++audio_state->sin_pos;
+        }
+    #endif
+#endif
 }

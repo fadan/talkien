@@ -453,8 +453,6 @@ static void win32_init_win32_api(Win32Api *win32_api)
     void *opengl32 = win32_load_library("opengl32.dll");
     void *kernel32 = win32_load_library("kernel32.dll");
     void *ole32 = win32_load_library("ole32.dll");
-
-    void *avrt = win32_load_library("avrt.dll");
     
     #define WIN32_API(dll, name, return_type, params) win32_api->name = (Win32Api_##name *)win32_get_proc_address(dll, #name);
     WIN32_API_FUNCTION_LIST

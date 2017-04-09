@@ -469,12 +469,13 @@ static UPDATE_AND_RENDER(update_and_render_stub)
 {
 }
 
-#define FILL_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples)
+#define FILL_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *channel_0, f32 *channel_1, u32 num_floats)
 typedef FILL_SOUND_BUFFER(FillSoundBuffer);
 static FILL_SOUND_BUFFER(fill_sound_buffer_stub)
 {
-    for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+    for (u32 float_index = 0; float_index < num_floats/2; ++float_index)
     {
-        buffer[sample_index] = 0;
+        channel_0[float_index] = 0;
+        channel_1[float_index] = 0;
     }
 }

@@ -554,18 +554,17 @@ static void win32_fill_sound_buffer(float *buffer, unsigned int num_floats)
 
 //
 
-static float audio_temp_buffer[MAX_AUDIO_BUFFER];
+static float audio_temp_channel_0[MAX_AUDIO_BUFFER_CHANNEL];
+static float audio_temp_channel_1[MAX_AUDIO_BUFFER_CHANNEL];
 static int audio_write_start_pos;
 static int audio_write_end_pos;
-static int prev_audio_write_end_pos;
 static int prev_audio_read_pos;
 
 static void win32_update_audio()
 {
     unsigned int num_floats = (audio_write_end_pos - audio_write_start_pos + MAX_AUDIO_BUFFER) % MAX_AUDIO_BUFFER;
-    prev_audio_write_end_pos = audio_write_end_pos;
 
-    win32_state->fill_sound_buffer(&win32_state->app_memory, audio_temp_buffer, num_floats);
+    win32_state->fill_sound_buffer(&win32_state->app_memory, audio_temp_channel_0, audio_temp_channel_1, num_floats);
 
     int cur_read_pos = audio_read_pos;
     int advanced = (cur_read_pos - prev_audio_read_pos + MAX_AUDIO_BUFFER) % MAX_AUDIO_BUFFER;
@@ -576,10 +575,10 @@ static void win32_update_audio()
     prev_audio_read_pos = cur_read_pos;
 
     unsigned int write_pos = audio_write_start_pos;
-    for (unsigned int float_index = 0; float_index < num_floats; float_index += 2)
+    for (unsigned int float_index = 0; float_index < num_floats/2; ++float_index)
     {
-        audio_buffer[write_pos]     = audio_temp_buffer[float_index];
-        audio_buffer[write_pos + 1] = audio_temp_buffer[float_index + 1];
+        audio_buffer[write_pos]     = audio_temp_channel_0[float_index];
+        audio_buffer[write_pos + 1] = audio_temp_channel_1[float_index];
 
         write_pos += 2;
 
@@ -595,8 +594,7 @@ static int win32_sound_thread_proc(void *param)
     audio_read_pos = 0;
     prev_audio_read_pos = 0;
     audio_write_end_pos = 0;
-    audio_write_start_pos = (50 * 44100 / 1000) * 2;
-    prev_audio_write_end_pos = audio_write_start_pos;
+    audio_write_start_pos = (50 * 44100 / 1000) * 2; // NOTE(dan): the play cursor is 50 samples behind to the write cursor
 
     void *buffer_ready_event = win32_api->CreateEventA(0, 0, 0, 0);
     if (win32_state->audio_client->vtbl->SetEventHandle(win32_state->audio_client, buffer_ready_event) >= 0)
@@ -628,8 +626,6 @@ static int win32_sound_thread_proc(void *param)
 
                     u32 num_floats = fill_frame_count * 2;
                     win32_fill_sound_buffer(buffer, num_floats);
-
-                    // win32_state->fill_sound_buffer(&win32_state->app_memory, buffer, num_floats);
 
                     if (win32_state->audio_render->vtbl->ReleaseBuffer(win32_state->audio_render, fill_frame_count, 0) < 0)
                     {
