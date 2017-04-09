@@ -255,8 +255,7 @@ static void close_file(LoadedFile file)
 static u32 total_wav_samples;
 static u32 played_wav_samples;
 
-static f32 *wav_channel_0;
-static f32 *wav_channel_1;
+static i16 *wav_samples;
 
 extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 {
@@ -268,7 +267,7 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
         audio_state = memory->audio_state = bootstrap_push_struct(AudioState, audio_memory);
     }
 
-    if (!wav_channel_0 || !wav_channel_1)
+    if (!wav_samples)
     {
         LoadedFile file = load_file("test2.wav");
         if (file.contents)
@@ -278,58 +277,24 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
             total_wav_samples = wav.num_samples;
             played_wav_samples = 0;
 
-            wav_channel_0 = push_array(&audio_state->audio_memory, wav.num_samples, f32);
-            wav_channel_1 = push_array(&audio_state->audio_memory, wav.num_samples, f32);
-
-            i16 *source = (i16 *)wav.samples;
-
-            for (u32 sample_index = 0; sample_index < wav.num_samples; ++sample_index)
-            {
-                wav_channel_0[sample_index] = *source++ / 32767.0f;
-                wav_channel_1[sample_index] = *source++ / 32767.0f;
-            }
+            wav_samples = wav.samples;
         }
-        close_file(file);
+        // close_file(file);
     }
 
-#if 1
-    for (u32 float_index = 0; float_index < num_floats/2; ++float_index)
+#if 0
+    for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
     {
-        channel_0[float_index] = 0;
-        channel_1[float_index] = 0;
+        buffer[sample_index] = 0;
     }
 #else
-    #if 1
-        u32 num_samples = num_floats / 2;
+    i16 *sample = wav_samples + played_wav_samples;
 
-        f32 *channel0 = wav_channel_0 + played_wav_samples; 
-        f32 *channel1 = wav_channel_1 + played_wav_samples;
+    for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+    {
+        buffer[sample_index] = *sample++ / 32678.0f;
+    }
 
-        for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
-        {
-            channel_0[sample_index] = *channel0++;
-            channel_1[sample_index] = *channel1++;
-        }
-
-        played_wav_samples += num_samples;
-    #else
-        for (u32 float_index = 0; float_index < num_floats/2; ++float_index)
-        {
-            f32 s = 0.0f;
-
-            s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 100.0f / 44100.0f);
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 200.0f / 44100.0f) / 2.0f;
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 300.0f / 44100.0f) / 3.0f;
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 400.0f / 44100.0f) / 4.0f;
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 500.0f / 44100.0f) / 5.0f;
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 600.0f / 44100.0f) / 8.0f;
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 700.0f / 44100.0f) / 10.0f;
-            // s += (f32)sin(audio_state->sin_pos * 2.0f * 3.141592f * 800.0f / 44100.0f) / 13.0f;
-
-            channel_0[float_index] = channel_1[float_index] = s / 30.0f;
-
-            ++audio_state->sin_pos;
-        }
-    #endif
+    played_wav_samples += num_samples;
 #endif
 }
