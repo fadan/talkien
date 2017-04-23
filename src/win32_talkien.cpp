@@ -103,8 +103,8 @@ static Win32Window win32_open_window_init_with_opengl(char *title, int width, in
             0x2091 /* WGL_CONTEXT_MAJOR_VERSION_ARB */,  3,
             0x2092 /* WGL_CONTEXT_MINOR_VERSION_ARB */,  3,
             0x2094 /* WGL_CONTEXT_FLAGS_ARB */,          CONTEXT_FLAGS,
-            0x9126 /* WGL_CONTEXT_PROFILE_MASK_ARB */,   0x0002 /* WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB */,
-            0,
+            0x9126 /* WGL_CONTEXT_PROFILE_MASK_ARB */,   0x0001, //0x0002 /* WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB */,
+            0
         };
 
         window.rc = win32_create_context(window.dc, context_attribs);
@@ -687,12 +687,16 @@ static void win32_init_audio(Win32State *state)
     }
 }
 
+Profiler global_profiler;
+Profiler *profiler = &global_profiler;
+
 int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_line, int cmd_show)
 {
     win32_state->app_memory.platform.allocate = win32_allocate;
     win32_state->app_memory.platform.deallocate = win32_deallocate;
     win32_state->app_memory.platform.get_memory_stats = win32_get_memory_stats;
     win32_state->app_memory.platform.init_opengl = win32_init_opengl;
+    win32_state->app_memory.profiler = profiler;
 
     win32_state->memory_sentinel.prev = &win32_state->memory_sentinel;
     win32_state->memory_sentinel.next = &win32_state->memory_sentinel;
@@ -714,21 +718,35 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
         win32_state->running = true;
         while (win32_state->running)
         {
+            PROFILER_BLOCK(win32_update);
+
+            PROFILER_BEGIN(win32_update_input);
             win32_update_input(&win32_state->input, dt);
-            
+            PROFILER_END();
+
+            PROFILER_BEGIN(update_and_render);            
             win32_state->update_and_render(&win32_state->app_memory, &win32_state->input, win32_state->window.width, win32_state->window.height);
+            PROFILER_END();
 
-            win32_reload_app_dll_if_needed(win32_state);
-
-            if (win32_state->input.quit_requested)
+            PROFILER_BEGIN(win32_reload_app_dll_if_needed);
             {
-                win32_state->running = false;
-            }
+                if (win32_state->input.quit_requested)
+                {
+                    win32_state->running = false;
+                }
 
+                win32_reload_app_dll_if_needed(win32_state);
+            }
+            PROFILER_END();
+
+            PROFILER_BEGIN(swap_buffers);
             win32_api->SwapBuffers(win32_state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;
             t0 = t1;
+            PROFILER_END();
+
+            PROFILER_FRAME_END(dt);
         }
     }
     

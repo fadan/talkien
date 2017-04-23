@@ -30,6 +30,16 @@
 #define GL_UNPACK_ROW_LENGTH              0x0CF2
 #define GL_VERTEX_SHADER                  0x8B31
 
+#define GL_LINE_STRIP                     0x0003
+#define GL_QUADS                          0x0007
+#define GL_ALPHA                          0x1906
+#define GL_VERTEX_ARRAY                   0x8074
+#define GL_PROJECTION                     0x1701
+#define GL_MODELVIEW                      0x1700
+
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS       0x8242
+#define GL_DEBUG_SEVERITY_HIGH            0x9146
+
 typedef unsigned int GLenum;
 typedef unsigned char GLboolean;
 typedef unsigned int GLbitfield;
@@ -92,6 +102,30 @@ typedef void (__stdcall * PFNGLUNIFORM1FPROC) (GLint location, GLfloat v0);
 typedef void (__stdcall * PFNGLUNIFORMMATRIX4FVPROC) (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
 typedef void (__stdcall * PFNGLUNIFORM4FVPROC) (GLint location, GLsizei count, const GLfloat *value);
 
+// 
+
+typedef void (__stdcall * PFNGLVERTEX2FPROC)(GLfloat x, GLfloat y);
+typedef void (__stdcall * PFNGLCOLOR4FPROC)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+typedef void (__stdcall * PFNGLCOLOR3UBPROC)(GLubyte red, GLubyte green, GLubyte blue);
+typedef void (__stdcall * PFNGLBEGINPROC)(GLenum mode);
+typedef void (__stdcall * PFNGLENDPROC)();
+typedef GLboolean (__stdcall * PFNGLISENABLEDPROC)(GLenum cap);
+typedef void (__stdcall * PFNGLDISABLEPROC)(GLenum cap);
+typedef void (__stdcall * PFNGLBEGINPROC)(GLenum mode);
+typedef void (__stdcall * PFNGLCOLOR3FVPROC)(GLfloat *v);
+typedef void (__stdcall * PFNGLTEXCOORD2FPROC)(GLfloat s, GLfloat t);
+typedef void (__stdcall * PFNGLCOLOR3FPROC)(GLfloat red, GLfloat green, GLfloat blue);
+typedef void (__stdcall * PFNGLENABLECLIENTSTATEPROC)(GLenum array);
+typedef void (__stdcall * PFNGLDISABLECLIENTSTATEPROC)(GLenum array);
+typedef void (__stdcall * PFNGLVERTEXPOINTERPROC)(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+typedef void (__stdcall * PFNGLDRAWARRAYSPROC)(GLenum mode, GLint first, GLsizei count);
+typedef void (__stdcall * PFNGLMATRIXMODEPROC)(GLenum mode);
+typedef void (__stdcall * PFNGLLOADIDENTITYPROC)();
+typedef void (__stdcall * PFNGLLOADMATRIXFPROC)(GLfloat *m);
+
+typedef void (__stdcall * GLDEBUGPROCARB)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar *message, GLvoid *user_param);
+typedef void (__stdcall * PFNGLDEBUGMESSAGECALLBACKPROC)(GLDEBUGPROCARB callback, GLvoid *user_param);
+
 // NOTE(dan): wglGetProcAddress will not work with functions that are directly exported by OpenGL32.dll
 #define GL_FUNCTION_LIST_1_1 \
     GLCORE(BINDTEXTURE,                 BindTexture) \
@@ -105,7 +139,24 @@ typedef void (__stdcall * PFNGLUNIFORM4FVPROC) (GLint location, GLsizei count, c
     GLCORE(SCISSOR,                     Scissor) \
     GLCORE(TEXIMAGE2D,                  TexImage2D) \
     GLCORE(TEXPARAMETERI,               TexParameteri) \
-    GLCORE(VIEWPORT,                    Viewport) 
+    GLCORE(VIEWPORT,                    Viewport) \
+    \
+    GLCORE(VERTEX2F, Vertex2f) \
+    GLCORE(COLOR4F, Color4f) \
+    GLCORE(COLOR3UB, Color3ub) \
+    GLCORE(BEGIN, Begin) \
+    GLCORE(END, End) \
+    GLCORE(ISENABLED, IsEnabled) \
+    GLCORE(COLOR3FV, Color3fv) \
+    GLCORE(TEXCOORD2F, TexCoord2f) \
+    GLCORE(COLOR3F, Color3f) \
+    GLCORE(ENABLECLIENTSTATE, EnableClientState) \
+    GLCORE(DISABLECLIENTSTATE, DisableClientState) \
+    GLCORE(VERTEXPOINTER, VertexPointer) \
+    GLCORE(DRAWARRAYS, DrawArrays) \
+    GLCORE(MATRIXMODE, MatrixMode) \
+    GLCORE(LOADIDENTITY, LoadIdentity) \
+    GLCORE(LOADMATRIXF, LoadMatrixf)
 
 #define GL_FUNCITON_LIST \
     GLCORE(ACTIVETEXTURE,               ActiveTexture) \
@@ -117,6 +168,7 @@ typedef void (__stdcall * PFNGLUNIFORM4FVPROC) (GLint location, GLsizei count, c
     GLCORE(BUFFERDATA,                  BufferData) \
     GLCORE(COMPILESHADER,               CompileShader) \
     GLCORE(CREATESHADER,                CreateShader) \
+    GLCORE(DEBUGMESSAGECALLBACK,        DebugMessageCallback) \
     GLCORE(DELETESHADER,                DeleteShader) \
     GLCORE(DETACHSHADER,                DetachShader) \
     GLCORE(DISABLEVERTEXATTRIBARRAY,    DisableVertexAttribArray) \
@@ -137,7 +189,7 @@ typedef void (__stdcall * PFNGLUNIFORM4FVPROC) (GLint location, GLsizei count, c
     GLCORE(UNIFORM4FV,                  Uniform4fv) \
     GLCORE(UNIFORMMATRIX4FV,            UniformMatrix4fv) \
     GLCORE(USEPROGRAM,                  UseProgram) \
-    GLCORE(VERTEXATTRIBPOINTER,         VertexAttribPointer)
+    GLCORE(VERTEXATTRIBPOINTER,         VertexAttribPointer) \
 
 #define GLARB(a, b) GLCORE(a##ARB, b##ARB)
 #define GLEXT(a, b) GLCORE(a##EXT, b##EXT)

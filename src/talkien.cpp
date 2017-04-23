@@ -1,6 +1,10 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "platform.h"
 #include "opengl.h"
 #include "ui.cpp"
+
+#include "profiler.cpp"
 
 struct AudioState
 {
@@ -18,22 +22,47 @@ struct AppState
 Platform platform;
 OpenGL gl;
 
+Profiler *profiler;
+
+static void opengl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar *message, GLvoid *user_param)
+{
+    if (severity == GL_DEBUG_SEVERITY_HIGH)
+    {
+        char *error = (char *)message;
+        assert(error);
+    }
+}
+
+static void init_app_state()
+{
+    platform.init_opengl(&gl);
+    init_ui();
+
+    if (gl.DebugMessageCallback)
+    {
+        gl.Enable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        gl.DebugMessageCallback(opengl_debug_callback, 0);
+    }
+}
+
 extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 {
-    platform = memory->platform;
-
     AppState *app_state = memory->app_state;
     if (!app_state)
     {
         app_state = memory->app_state = bootstrap_push_struct(AppState, app_memory);
-        platform.init_opengl(&gl);
-        init_ui();
+        platform = memory->platform;
+        profiler = memory->profiler;
+
+        init_app_state();
     }
 
     if (memory->app_dll_reloaded)
     {
-        platform.init_opengl(&gl);
-        init_ui();
+        platform = memory->platform;
+        profiler = memory->profiler;
+
+        init_app_state();
     }
 
     ImVec4 clear_color = ImColor(49, 55, 66);
@@ -81,8 +110,15 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 
         bool show = true;
         ShowExampleAppConsole(&show);
+
+        ImGui::ShowTestWindow(&show);
+    }
+
+    {
+        profiler_report(memory);
     }
     end_ui();
+
 }
 
 // NOTE(dan): test audio
@@ -219,13 +255,11 @@ static LoadedWav load_wav(void *memory, usize size)
 #include <math.h>
 #include <stdio.h>
 
-
 struct LoadedFile
 {
     u32 size;
     void *contents;
 };
-
 
 static LoadedFile load_file(char *filename)
 {
@@ -282,7 +316,7 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
         // close_file(file);
     }
 
-#if 0
+#if 1
     for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
     {
         buffer[sample_index] = 0;

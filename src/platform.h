@@ -109,17 +109,27 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #define TB  (1024LL * GB)
 
 #if COMPILER == COMPILER_MSVC
+    extern "C" long _InterlockedExchangeAdd(long volatile *addend, long value);
     extern "C" __int64 _InterlockedExchangeAdd64(__int64 volatile *addend, __int64 value);
     extern "C" long _InterlockedExchange(long volatile *target, long value);
+    extern "C" __int64 _InterlockedExchange64(__int64 volatile *target, __int64 value);
     extern "C" long _InterlockedCompareExchange(long volatile *destination, long exchange, long comparand); 
     extern "C" void _mm_pause();
 
-    extern "C" void *memset(void *target, i32 value, usize target_size);
+    extern "C" unsigned __int64 __rdtsc();
+    extern "C" unsigned __int64 __readgsqword(unsigned long offset);
 
-    inline u64 atomic_add_u64(u64 volatile *value, u64 addend)
+    inline u32 atomic_add_u32(u32 volatile *addend, u32 value)
     {
-        // NOTE(dan): result = current value without addend
-        u64 result = _InterlockedExchangeAdd64((__int64 volatile *)value, addend);
+        // NOTE(dan): result = current value of addend
+        u32 result = _InterlockedExchangeAdd((long volatile *)addend, value);
+        return result;
+    }
+
+    inline u64 atomic_add_u64(u64 volatile *addend, u64 value)
+    {
+        // NOTE(dan): result = current value of addend
+        u64 result = _InterlockedExchangeAdd64((__int64 volatile *)addend, value);
         return result;
     }
 
@@ -129,10 +139,24 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
         return result;
     }
 
+
+    inline u64 atomic_exchange_u64(u64 volatile *target, u64 value)
+    {
+        u64 result = _InterlockedExchange64((__int64 volatile *)target, value);
+        return result;
+    }
+
     inline u32 atomic_cmpxchg_u32(u32 volatile *value, u32 volatile new_value, u32 expected)
     {
         u32 result = _InterlockedCompareExchange((long volatile *)value, new_value, expected);
         return result;
+    }
+
+    inline u32 get_thread_id()
+    {
+        u8 *thread_local_storage = (u8 *)__readgsqword(0x30);
+        u32 thread_id = *(u32 *)(thread_local_storage + 0x48);
+        return thread_id;
     }
 #endif
 
@@ -279,6 +303,8 @@ typedef PLATFORM_DEALLOCATE(PlatformDeallocate);
 typedef PLATFORM_GET_MEMORY_STATS(PlatformGetMemoryStats);
 typedef PLATFORM_INIT_OPENGL(PlatformInitOpenGL);
 
+#include "profiler.h"
+
 struct Platform
 {
     PlatformAllocate *allocate;
@@ -293,9 +319,12 @@ struct AppMemory
 {
     struct AppState *app_state;
     struct AudioState *audio_state;
-    b32 app_dll_reloaded;
 
+    b32 app_dll_reloaded;
     Platform platform;
+
+    struct ProfilerState *profiler_state;
+    Profiler *profiler;
 };
 
 struct Mutex
@@ -317,6 +346,8 @@ inline void end_mutex(Mutex *mutex)
 {
     atomic_add_u64(&mutex->serving, 1);
 }
+
+#define zero_struct(dest) zero_size(&(dest), sizeof(dest))
 
 inline void zero_size(void *dest, usize size)
 {
