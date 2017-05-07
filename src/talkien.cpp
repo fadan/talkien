@@ -65,7 +65,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         init_app_state();
     }
 
-    ImVec4 clear_color = ImColor(49, 55, 66);
+    ImVec4 clear_color = ImColor(85, 118, 152);
     gl.Enable(GL_SCISSOR_TEST);
     gl.Enable(GL_BLEND);
 
@@ -94,7 +94,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         
         ImGui::SetNextWindowPos(ImVec2(10, 30));
 
-        ImGui::Begin("", 0, ImVec2(0, 0), 0.3f, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
+        ImGui::Begin("", 0, ImVec2(0, 0), 1.0f, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
         {
             PlatformMemoryStats memory_stats = platform.get_memory_stats();
 
