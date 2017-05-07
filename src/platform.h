@@ -108,6 +108,8 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #define GB  (1024LL * MB)
 #define TB  (1024LL * GB)
 
+#define F32_MAX 3.402823E+38F
+
 #if COMPILER == COMPILER_MSVC
     extern "C" long _InterlockedExchangeAdd(long volatile *addend, long value);
     extern "C" __int64 _InterlockedExchangeAdd64(__int64 volatile *addend, __int64 value);
@@ -115,7 +117,6 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
     extern "C" __int64 _InterlockedExchange64(__int64 volatile *target, __int64 value);
     extern "C" long _InterlockedCompareExchange(long volatile *destination, long exchange, long comparand); 
     extern "C" void _mm_pause();
-
     extern "C" unsigned __int64 __rdtsc();
     extern "C" unsigned __int64 __readgsqword(unsigned long offset);
 

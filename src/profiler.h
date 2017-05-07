@@ -1,60 +1,74 @@
-
-enum ProfilerEventType
+enum ProfilerEntryType
 {
-    ProfilerEventType_BeginBlock,
-    ProfilerEventType_EndBlock,
-    ProfilerEventType_FrameEnd,
+    ProfilerEntryType_Begin,
+    ProfilerEntryType_End,
+    ProfilerEntryType_FrameTime,
 };
 
-struct ProfilerEvent
+struct ProfilerEntry
 {
-    char *name;
-    u64 clock;
+    char *guid;
+    u64 timestamp;
     u16 thread_id;
     u16 type;
-
     union
     {
-        f32 value_f32;
+        f32 frame_time;
     };
 };
 
 struct Profiler
 {
-    u32 volatile event_count;
-    ProfilerEvent events[4096];
+    u32 current_entry_array_index;
+    u32 volatile entry_array_index__entry_index;
+
+    ProfilerEntry entries[2][4096];
 };
 
 extern Profiler *profiler;
 
-#define PROFILER_PUSH_EVENT(event_name, event_type) \
-    u32 event_index = atomic_add_u32(&profiler->event_count, 1); \
-    assert(event_index < array_count(profiler->events)); \
-    ProfilerEvent *event = profiler->events + event_index; \
-    event->name = event_name; \
-    event->clock = __rdtsc(); \
-    event->thread_id = (u16)get_thread_id(); \
-    event->type = (u16)event_type;
+#define PROFILER_GUID__(a, b, c)    a "|" #b "|" c
+#define PROFILER_GUID_(a, b, c)     PROFILER_GUID__(a, b, c)
+#define PROFILER_GUID(name)         PROFILER_GUID_(__FILE__, __LINE__, name)
 
-#define PROFILER_BEGIN_(name)       PROFILER_PUSH_EVENT(name, ProfilerEventType_BeginBlock)
-#define PROFILER_END_()             PROFILER_PUSH_EVENT("PROFILER_END", ProfilerEventType_EndBlock)
-#define PROFILER_BEGIN(name)        { PROFILER_BEGIN_(#name); }
-#define PROFILER_END()              { PROFILER_END_(); }
+#define PROFILER_PUSH_ENTRY(entry_guid, entry_type) \
+    u32 array_index__entry_index = atomic_add_u32(&profiler->entry_array_index__entry_index, 1); \
+    u32 entry_index = array_index__entry_index & 0xFFFFFFF; \
+    \
+    assert(entry_index < array_count(profiler->entries[0])); \
+    \
+    ProfilerEntry *entry = profiler->entries[array_index__entry_index >> 31] + entry_index; \
+    entry->guid = entry_guid; \
+    entry->timestamp = __rdtsc(); \
+    entry->thread_id = (u16)get_thread_id(); \
+    entry->type = (u16)entry_type;
 
-#define PROFILER_BLOCK(name)    ProfilerBlock profiler_block_##name(#name)
-#define PROFILER_FUNCTION()     ProfilerBlock profiler_block_##__FUNCTION__(#__FUNCTION__)
+#define PROFILER_FRAME_TIME(dt) \
+    { \
+        PROFILER_PUSH_ENTRY(PROFILER_GUID("FRAME_END"), ProfilerEntryType_FrameTime); \
+        entry->frame_time = dt; \
+    }
 
-#define PROFILER_FRAME_END(dt)    { PROFILER_PUSH_EVENT("FRAME_MARKER", ProfilerEventType_FrameEnd); event->value_f32 = dt; }
+#define PROFILER_BLOCK_(guid)   ProfilerBlock profiler_block_##__LINE__(guid)
+
+#define PROFILER_BEGIN_(guid)   PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_Begin)
+#define PROFILER_END_(guid)     PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_End)
+
+#define PROFILER_BEGIN(name)    { PROFILER_BEGIN_(PROFILER_GUID(name)); }
+#define PROFILER_END()          { PROFILER_END_(PROFILER_GUID("END_BLOCK")); }
+
+#define PROFILER_BLOCK(name)    PROFILER_BLOCK_(PROFILER_GUID(name))
+#define PROFILER_FUNCTION()     PROFILER_BLOCK_(__FUNCTION__)
 
 struct ProfilerBlock
 {
-    ProfilerBlock(char *name)
+    ProfilerBlock(char *guid)
     {
-        PROFILER_BEGIN_(name);
+        PROFILER_BEGIN_(guid);
     }
 
     ~ProfilerBlock()
     {
-        PROFILER_END_();
+        PROFILER_END_(PROFILER_GUID("END_BLOCK"));
     }
 };

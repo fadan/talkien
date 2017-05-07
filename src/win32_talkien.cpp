@@ -718,17 +718,17 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
         win32_state->running = true;
         while (win32_state->running)
         {
-            PROFILER_BLOCK(win32_update);
+            PROFILER_BLOCK("Win32 Main Loop");
 
-            PROFILER_BEGIN(win32_update_input);
+            PROFILER_BEGIN("Win32 Gather Input");
             win32_update_input(&win32_state->input, dt);
             PROFILER_END();
 
-            PROFILER_BEGIN(update_and_render);            
+            PROFILER_BEGIN("Win32 Update And Render");            
             win32_state->update_and_render(&win32_state->app_memory, &win32_state->input, win32_state->window.width, win32_state->window.height);
             PROFILER_END();
 
-            PROFILER_BEGIN(win32_reload_app_dll_if_needed);
+            PROFILER_BEGIN("Win32 Refresh App DLL");
             {
                 if (win32_state->input.quit_requested)
                 {
@@ -739,14 +739,14 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
             }
             PROFILER_END();
 
-            PROFILER_BEGIN(swap_buffers);
+            PROFILER_BEGIN("Win32 Swap Buffers");
             win32_api->SwapBuffers(win32_state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;
             t0 = t1;
             PROFILER_END();
 
-            PROFILER_FRAME_END(dt);
+            PROFILER_FRAME_TIME(dt);
         }
     }
     
