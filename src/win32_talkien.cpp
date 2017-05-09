@@ -143,6 +143,8 @@ inline f32 win32_get_time()
 
 static intptr __stdcall win32_window_proc(void *wnd, unsigned int message, uintptr wparam, intptr lparam)
 {
+    PROFILER_FUNCTION();
+    
     intptr result = 0;
     switch (message)
     {
@@ -179,6 +181,8 @@ static void win32_update_button(PlatformButton *button, b32 down)
 
 static void win32_get_raw_input(PlatformInput *input, intptr lparam)
 {
+    PROFILER_FUNCTION();
+
     Win32Api_RAWINPUT raw_input;
     unsigned int raw_input_size = sizeof(raw_input);
     win32_api->GetRawInputData((void *)lparam, 0x10000003 /* RID_INPUT */, &raw_input, &raw_input_size, sizeof(Win32Api_RAWINPUTHEADER));
@@ -276,6 +280,8 @@ static void win32_get_text_input(PlatformInput *input, uintptr wparam)
 
 static void win32_process_messages(PlatformInput *input)
 {
+    PROFILER_FUNCTION();
+
     Win32Api_MSG msg;
     while (win32_api->PeekMessageA(&msg, 0, 0, 0, 0x0001 /* PM_REMOVE */))
     {

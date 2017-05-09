@@ -161,6 +161,9 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
     }
 #endif
 
+#include "sort.h"
+#include "string.h"
+
 enum PlatformButtonScanCode
 {
     button_escape =             0x01,      button_1 =                 0x02,        button_2 =               0x03,      button_3 =                0x04,
@@ -348,6 +351,34 @@ inline void end_mutex(Mutex *mutex)
     atomic_add_u64(&mutex->serving, 1);
 }
 
+#define allocate_freelist(result, first_free, allocation) \
+    (result) = (first_free); \
+    if (result) \
+    { \
+        first_free = (result)->next_free; \
+    } \
+    else \
+    { \
+        result = allocation; \
+    }
+
+#define deallocate_freelist(free, free_list) \
+    if (free) \
+    { \
+        (free)->next_free = (free_list); \
+        (free_list) = (free); \
+    }
+
+#define dllist_init(sentinel) \
+    (sentinel)->next = (sentinel); \
+    (sentinel)->prev = (sentinel);
+
+#define dllist_insert_last(sentinel, element) \
+    (element)->next = (sentinel); \
+    (element)->prev = (sentinel)->prev; \
+    (element)->next->prev = (element); \
+    (element)->prev->next = (element);
+
 #define zero_struct(dest) zero_size(&(dest), sizeof(dest))
 
 inline void zero_size(void *dest, usize size)
@@ -439,6 +470,22 @@ inline void *push_size(MemoryStack *memstack, usize size, MemoryStackParams para
     }
 
     return result;
+}
+
+inline char *push_string(MemoryStack *memstack, char *string)
+{
+    u32 size = 1;
+    for (char *at = string; *at; ++at)
+    {
+        ++size;
+    }
+
+    char *dest = (char *)push_size(memstack, size, no_clear());
+    for (u32 char_index = 0; char_index < size; ++char_index)
+    {
+        dest[char_index] = string[char_index];
+    }
+    return dest;
 }
 
 #define bootstrap_push_struct(type, member, ...) (type *)bootstrap_push_size(sizeof(type), offset_of(type, member), ## __VA_ARGS__)
