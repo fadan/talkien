@@ -5,6 +5,12 @@ struct AudioState
 
     u32 last_mix_length;
     f64 sin_pos;
+
+    struct AudioRecord *local_record;
+    struct AudioRecord *first_record;
+    struct AudioRecord *first_free_record;
+
+    f32 master_volume[2];
 };
 
 struct AppState

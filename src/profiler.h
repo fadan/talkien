@@ -51,8 +51,8 @@ extern Profiler *profiler;
 
 #define PROFILER_BLOCK_(guid)   ProfilerBlock profiler_block_##__LINE__(guid)
 
-#define PROFILER_BEGIN_(guid)   PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_Begin)
-#define PROFILER_END_(guid)     PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_End)
+#define PROFILER_BEGIN_(guid)   if (profiler) { PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_Begin) }
+#define PROFILER_END_(guid)     if (profiler) { PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_End) }
 
 #define PROFILER_BEGIN(name)    { PROFILER_BEGIN_(PROFILER_GUID(name)); }
 #define PROFILER_END()          { PROFILER_END_(PROFILER_GUID("END_BLOCK")); }

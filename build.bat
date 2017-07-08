@@ -19,7 +19,7 @@ set cplflags=-DINTERNAL_BUILD=1
 set cplflags=%cplflags% -Oi -Od
 
 :: Preprocessor output
-rem set cplflags=%cplflags% -P
+:: set cplflags=%cplflags% -P
 
 :: Code gen flags
 :: -fp:fast : fast floating-point behavior

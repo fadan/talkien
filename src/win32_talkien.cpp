@@ -503,6 +503,7 @@ static void win32_unload_app_dll(Win32State *state)
 
     state->update_and_render = update_and_render_stub;
     state->fill_sound_buffer = fill_sound_buffer_stub;
+    state->capture_sound_buffer = capture_sound_buffer_stub;
 }
 
 static void win32_reload_app_dll_if_needed(Win32State *state)

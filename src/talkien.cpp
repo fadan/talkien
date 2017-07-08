@@ -1,5 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
-
 #include "platform.h"
 #include "opengl.h"
 #include "talkien.h"
@@ -157,6 +155,9 @@ static LoadedWav load_wav(void *memory, usize size)
     return wav;
 }
 
+// TODO(dan): temp only, remove
+#define _CRT_SECURE_NO_WARNINGS
+
 #pragma warning(push)
 #pragma warning(disable: 4996)
 
@@ -199,16 +200,109 @@ static u32 played_wav_samples;
 
 static i16 *wav_samples;
 
-extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
+struct AudioRecord
 {
-    platform = memory->platform;
-    profiler = memory->profiler;
+    u32 num_samples_written;
+    u32 num_samples_read;
+    u32 max_sample_count;
+    f32 *samples;
 
+    f32 volume[2];
+
+    union
+    {
+        AudioRecord *next;
+        AudioRecord *next_free;
+    };
+};
+
+static AudioRecord *allocate_audio_record(AudioState *state)
+{
+    AudioRecord *record;
+    allocate_freelist(record, state->first_free_record, push_struct(&state->audio_memory, AudioRecord));
+    return record;
+}
+
+static void init_recording(AudioState *state, AudioRecord *record, u16 num_channels, u16 bits_per_sample, u32 samples_per_sec)
+{
+    assert(num_channels == 2); // TODO(dan): 2 for now
+    assert(bits_per_sample == 32);
+
+    record->max_sample_count = 1 * samples_per_sec; // NOTE(dan): 1 sec buffer
+    record->samples = push_array(&state->audio_memory, record->max_sample_count, f32, align_no_clear(16));
+
+    record->num_samples_written = 0;
+    record->num_samples_read = 0;
+
+    record->volume[0] = record->volume[1] = 0.5f;
+}
+
+static AudioState *get_or_init_audio_state(AppMemory *memory)
+{
     AudioState *audio_state = memory->audio_state;
     if (!audio_state)
     {
         audio_state = memory->audio_state = bootstrap_push_struct(AudioState, audio_memory);
+        audio_state->local_record = allocate_audio_record(audio_state);
+        init_recording(audio_state, audio_state->local_record, 2, 32, 44100);
     }
+    return audio_state;
+}
+
+extern "C" __declspec(dllexport) CAPTURE_SOUND_BUFFER(capture_sound_buffer)
+{
+    PROFILER_FUNCTION();
+
+    AudioState *audio_state = get_or_init_audio_state(memory);
+    AudioRecord *local_record = audio_state->local_record;
+
+    u32 remaining_samples = local_record->max_sample_count - local_record->num_samples_written;
+    if (num_samples > remaining_samples)
+    {
+        f32 *src1 = buffer;
+        f32 *dest1 = local_record->samples + local_record->num_samples_written;
+        u32 src1_sample_count = remaining_samples;
+
+        f32 *src2 = buffer + src1_sample_count;
+        f32 *dest2 = local_record->samples;
+        u32 src2_sample_count = num_samples - src1_sample_count;
+
+        for (u32 sample_index = 0; sample_index < src1_sample_count; ++sample_index)
+        {
+            *dest1++ = *src1++;
+        }
+
+        for (u32 sample_index = 0; sample_index < src2_sample_count; ++sample_index)
+        {
+            *dest2++ = *src1++;
+        }
+
+        local_record->num_samples_written = src2_sample_count;
+    }
+    else
+    {
+        f32 *src = buffer;
+        f32 *dest = local_record->samples + local_record->num_samples_written;
+
+        for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+        {
+            *dest++ = *src++;
+        }
+
+        local_record->num_samples_written += num_samples;
+    }
+
+    assert(local_record->num_samples_written < local_record->max_sample_count);
+}
+
+extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
+{
+    PROFILER_FUNCTION();
+
+    platform = memory->platform;
+    profiler = memory->profiler;
+
+    AudioState *audio_state = get_or_init_audio_state(memory);
 
     if (!wav_samples)
     {
@@ -226,12 +320,12 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
     }
 
 #if 0
-    PROFILER_BEGIN("Clear Sound Buffer");
+    // PROFILER_BEGIN("Clear Sound Buffer");
     for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
     {
         buffer[sample_index] = 0;
     }
-    PROFILER_END();
+    // PROFILER_END();
 #else
     i16 *sample = wav_samples + played_wav_samples;
 
@@ -242,9 +336,4 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 
     played_wav_samples += num_samples;
 #endif
-}
-
-extern "C" __declspec(dllexport) CAPTURE_SOUND_BUFFER(capture_sound_buffer)
-{
-    
 }
