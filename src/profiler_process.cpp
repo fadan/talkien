@@ -4,6 +4,7 @@ static ProfilerParsedName profiler_parse_name(char *guid)
     ProfilerParsedName parsed_name = {};
     u32 num_pipes = 0;
     u32 name_starts_at = 0;
+
     char *scan = guid;
 
     for (; *scan; ++scan)
@@ -65,6 +66,7 @@ static ProfilerLink *profiler_add_element_to_group(ProfilerState *state, Profile
 
 static ProfilerElement *profiler_get_element_from_entry(ProfilerState *state, ProfilerEntry *entry, ProfilerLink *parent)
 {
+
     ProfilerParsedName parsed_name = profiler_parse_name(entry->guid);
     u32 index = (parsed_name.hash_value % array_count(state->element_hash));
 
@@ -372,6 +374,11 @@ static void profiler_report(AppMemory *memory)
     {
         state = memory->profiler_state = bootstrap_push_struct(ProfilerState, profiler_memory);
         profiler_init(state);
+    }
+
+    if (memory->app_dll_reloaded)
+    {
+        
     }
 
     if (!state->paused)

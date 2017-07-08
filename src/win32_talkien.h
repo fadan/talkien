@@ -385,10 +385,45 @@ struct Win32Api_IAudioRenderClient
     Win32Api_IAudioRenderClientVtbl *vtbl;
 };
 
+// typedef struct IAudioCaptureClientVtbl
+// {
+//     BEGIN_INTERFACE
+    
+//     HRESULT ( STDMETHODCALLTYPE *QueryInterface )( IAudioCaptureClient * This,/* [in] */ REFIID riid,/* [annotation][iid_is][out] */ _COM_Outptr_  void **ppvObject);
+
+//     ULONG ( STDMETHODCALLTYPE *AddRef )( IAudioCaptureClient * This);
+
+//     ULONG ( STDMETHODCALLTYPE *Release )( IAudioCaptureClient * This);
+    
+//     HRESULT ( STDMETHODCALLTYPE *GetBuffer )( IAudioCaptureClient * This,/* [annotation][out] */ _Outptr_result_buffer_(_Inexpressible_("*pNumFramesToRead * pFormat->nBlockAlign"))  BYTE **ppData, [annotation][out]  _Out_  UINT32 *pNumFramesToRead,/* [annotation][out] */ _Out_  DWORD *pdwFlags,/* [annotation][unique][out] */ _Out_opt_  UINT64 *pu64DevicePosition,/* [annotation][unique][out] */ _Out_opt_  UINT64 *pu64QPCPosition);
+    
+//     HRESULT ( STDMETHODCALLTYPE *ReleaseBuffer )( IAudioCaptureClient * This,/* [annotation][in] */ _In_  UINT32 NumFramesRead);
+
+//     HRESULT ( STDMETHODCALLTYPE *GetNextPacketSize )( IAudioCaptureClient * This,/* [annotation][out] */ _Out_  UINT32 *pNumFramesInNextPacket);
+    
+//     END_INTERFACE
+// } IAudioCaptureClientVtbl;
+
+struct Win32Api_IAudioCaptureClientVtbl
+{
+    void (*f1)(); // QueryInterface
+    void (*f2)(); // AddRef
+    void (*f3)(); // Release
+    int (__stdcall *GetBuffer)(void *capture_client, unsigned char **data, unsigned int *num_frames_to_read, unsigned int *flags, u64 *device_position, u64 *qpc_position);
+    int (__stdcall *ReleaseBuffer)(void *capture_client, unsigned int num_frames_read);
+    int (__stdcall *GetNextPacketSize)(void *capture_client, unsigned int num_frames_in_next_packet);
+};
+
+struct Win32Api_IAudioCaptureClient
+{
+    Win32Api_IAudioCaptureClientVtbl *vtbl;
+};
+
 static Win32Api_GUID Win32Api_uuid_IMMDeviceEnumerator = { 0xA95664D2, 0x9614, 0x4F35, 0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6 };
 static Win32Api_GUID Win32Api_uuid_MMDeviceEnumerator  = { 0xBCDE0395, 0xE52F, 0x467C, 0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E };
-static Win32Api_GUID WIn32Api_uuid_IAudioClient        = { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
+static Win32Api_GUID Win32Api_uuid_IAudioClient        = { 0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2 };
 static Win32Api_GUID Win32Api_uuid_IAudioRenderClient  = { 0xF294ACFC, 0x3146, 0x4483, 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2 };
+static Win32Api_GUID Win32Api_uuid_IAudioCaptureClient = { 0xC8ADBD64, 0xE71E, 0x48a0, 0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xD3, 0x17 };
 
 #define WIN32_API_FUNCTION_LIST \
     WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
@@ -409,6 +444,7 @@ static Win32Api_GUID Win32Api_uuid_IAudioRenderClient  = { 0xF294ACFC, 0x3146, 0
     WIN32_API(kernel32, VirtualAlloc, void * __stdcall, (void *addr, usize size, unsigned int alloc_type, unsigned int protect)) \
     WIN32_API(kernel32, VirtualFree, int __stdcall, (void *addr, usize size, usize free_type)) \
     WIN32_API(kernel32, WaitForSingleObject, unsigned int __stdcall, (void *handle, unsigned int milliseconds)) \
+    WIN32_API(kernel32, WaitForMultipleObjects, unsigned int __stdcall, (unsigned int count, void **handles, int wait_all, unsigned int milliseconds)) \
     \
     WIN32_API(ole32, CoCreateInstance, int __stdcall, (Win32Api_GUID *rclsid, void *unk_outer, int cls_context, Win32Api_GUID *riid, void **ppv)) \
     WIN32_API(ole32, CoInitializeEx, int __stdcall, (void *reserved, int co_init)) \
@@ -502,6 +538,7 @@ struct Win32State
 
     UpdateAndRender *update_and_render;
     FillSoundBuffer *fill_sound_buffer;
+    CaptureSoundBuffer *capture_sound_buffer;
 
     b32 pause_scan_code_read;
 
@@ -510,4 +547,7 @@ struct Win32State
 
     Win32Api_IAudioClient *audio_client;
     Win32Api_IAudioRenderClient *audio_render;
+    Win32Api_IAudioCaptureClient *audio_capture;
+
+    Win32Api_IAudioClient *audio_capture_client;
 };

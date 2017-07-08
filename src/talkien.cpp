@@ -32,6 +32,8 @@ static void init_app_state()
 
 extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 {
+    PROFILER_FUNCTION();
+
     AppState *app_state = memory->app_state;
     if (!app_state)
     {
@@ -223,7 +225,7 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
         // close_file(file);
     }
 
-#if 1
+#if 0
     PROFILER_BEGIN("Clear Sound Buffer");
     for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
     {
@@ -240,4 +242,9 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 
     played_wav_samples += num_samples;
 #endif
+}
+
+extern "C" __declspec(dllexport) CAPTURE_SOUND_BUFFER(capture_sound_buffer)
+{
+    
 }

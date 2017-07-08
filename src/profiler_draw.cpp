@@ -100,7 +100,7 @@ static void profiler_draw_frame_history(ProfilerState *state, f32 graph_size_x, 
         
         ImGui::SameLine(ImGui::GetWindowWidth() - 115);
         ImGui::PushItemWidth(100.0f);
-        ImGui::DragInt("", &state->pause_condition_ms, 1, 1, 1000, "%.0f ms");
+        ImGui::DragInt("", &state->pause_condition_ms, 1, 0, 1000, "%.0f ms");
     }
     ImGui::End();
 }
@@ -131,16 +131,6 @@ inline void profiler_random_color(f32 *color)
     {
         index = 0;
     }
-}
-
-static u64 profiler_get_total_clocks(ProfilerElementFrame *frame)
-{
-    u64 total_clocks = 0;
-    for (ProfilerStoredEntry *entry = frame->oldest_entry; entry; entry = entry->next)
-    {
-        total_clocks += entry->profiler_node.duration;
-    }
-    return total_clocks;
 }
 
 static void profiler_draw_bars(ProfilerState *state, ImGuiWindow *window, ImRect graph_rect, ProfilerNode *root_node, f32 lane_stride, f32 lane_height, u32 depth_remaining)
@@ -224,8 +214,13 @@ static void profiler_draw_timelines(ProfilerState *state, f32 graph_size_x, f32 
         ProfilerElement *root_element = state->root_element;
         ProfilerElementFrame *root_frame = root_element->frames + state->display_frame_index;
         f32 next_x = inner_bb.Min.x;
-        u64 total_clocks = profiler_get_total_clocks(root_frame);
         u64 relative_clock = 0;
+
+        u64 total_clocks = 0;
+        for (ProfilerStoredEntry *entry = root_frame->oldest_entry; entry; entry = entry->next)
+        {
+            total_clocks += entry->profiler_node.duration;
+        }
 
         for (ProfilerStoredEntry *entry = root_frame->oldest_entry; entry; entry = entry->next)
         {

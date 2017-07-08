@@ -557,3 +557,9 @@ static FILL_SOUND_BUFFER(fill_sound_buffer_stub)
         buffer[float_index] = 0;
     }
 }
+
+#define CAPTURE_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples)
+typedef CAPTURE_SOUND_BUFFER(CaptureSoundBuffer);
+static CAPTURE_SOUND_BUFFER(capture_sound_buffer_stub)
+{
+}
