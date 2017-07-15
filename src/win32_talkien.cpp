@@ -676,10 +676,12 @@ static int win32_sound_thread_proc(void *param)
                         } break;
                     }
                 }
+
+                win32_state->audio_client->vtbl->Stop(win32_state->audio_client);
+                win32_state->audio_capture_client->vtbl->Stop(win32_state->audio_capture_client);
             }
         }
     }
-    win32_state->audio_client->vtbl->Stop(win32_state->audio_client);
     return 0;
 }
 // static int win32_sound_thread_proc(void *param)
