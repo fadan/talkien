@@ -1,29 +1,46 @@
+Profiler *profiler;
+Platform platform;
+OpenGL gl;
+
+struct AudioRecord
+{
+    u64 total_samples_written;
+    u64 total_samples_read;
+    u32 num_buffer_samples;
+    f32 *samples;
+
+    f32 volume[2];
+    b32 muted;
+
+    union
+    {
+        AudioRecord *next;
+        AudioRecord *next_free;
+    };
+};
 
 struct AudioState
 {
+    b32 initialized;
+
     MemoryStack audio_memory;
 
-    u32 last_mix_length;
-    f64 sin_pos;
-
-    struct AudioRecord *local_record;
-    struct AudioRecord *first_record;
-    struct AudioRecord *first_free_record;
+    AudioRecord *local_record;
+    AudioRecord *first_record;
+    AudioRecord *first_free_record;
 
     f32 master_volume[2];
 };
 
 struct AppState
 {
+    b32 initialized;
+
     MemoryStack app_memory;
+    AudioState audio_state;
 };
 
-Profiler *profiler;
-Platform platform;
-OpenGL gl;
-
 // NOTE(dan): test audio
-
 #define FOURCC(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
 #define WAVE_FORMAT_PCM 0x0001
 

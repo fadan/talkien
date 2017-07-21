@@ -64,7 +64,7 @@ struct ProfilerElementFrame
 
 struct ProfilerElement
 {
-    char *original_guid;
+    // char *original_guid;
     char *guid;
     char *name;
     u32 file_name_length;

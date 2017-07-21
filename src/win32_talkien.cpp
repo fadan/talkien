@@ -399,11 +399,11 @@ static PLATFORM_GET_MEMORY_STATS(win32_get_memory_stats)
 static PLATFORM_INIT_OPENGL(win32_init_opengl)
 {
     void *module = win32_load_library("opengl32.dll");
-    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)win32_get_proc_address(module, "gl" #b); 
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)win32_get_proc_address(module, "gl" #b); assert(open_gl->##b); 
     GL_FUNCTION_LIST_1_1
     #undef GLCORE
 
-    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)win32_api->wglGetProcAddress("gl" #b); 
+    #define GLCORE(a, b) open_gl->##b = (PFNGL##a##PROC)win32_api->wglGetProcAddress("gl" #b); assert(open_gl->##b);
     GL_FUNCITON_LIST
     #undef GLCORE
 }
@@ -508,7 +508,7 @@ static void win32_unload_app_dll(Win32State *state)
 
 static void win32_reload_app_dll_if_needed(Win32State *state)
 {
-    state->app_dll_reloaded = false;
+    state->app_memory.app_dll_reloaded = false;
 
     Win32Api_WIN32_FILE_ATTRIBUTE_DATA attr;
     if (win32_api->GetFileAttributesExA(state->app_dll_filename, Win32Api_GetFileExInfoStandard, &attr))

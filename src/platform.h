@@ -322,13 +322,12 @@ extern Platform platform;
 struct AppMemory
 {
     struct AppState *app_state;
-    struct AudioState *audio_state;
-
-    b32 app_dll_reloaded;
-    Platform platform;
-
     struct ProfilerState *profiler_state;
-    Profiler *profiler;
+    struct Profiler *profiler;
+
+    Platform platform;
+    
+    b32 app_dll_reloaded;
 };
 
 struct Mutex

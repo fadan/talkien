@@ -533,7 +533,6 @@ struct Win32State
     char app_temp_dll_filename[MAX_FILENAME_SIZE];
 
     void *app_dll;
-    b32 app_dll_reloaded;
     Win32Api_FILETIME app_dll_last_write;
 
     UpdateAndRender *update_and_render;

@@ -75,7 +75,7 @@ static ProfilerElement *profiler_get_element_from_entry(ProfilerState *state, Pr
     {
         element = push_struct(&state->profiler_memory, ProfilerElement);
 
-        element->original_guid = entry->guid;
+        // element->original_guid = entry->guid;
         element->guid = push_string(&state->profiler_memory, entry->guid);
         element->file_name_length = parsed_name.file_name_length;
         element->line_number = parsed_name.line_number;
@@ -378,7 +378,7 @@ static void profiler_report(AppMemory *memory)
 
     if (memory->app_dll_reloaded)
     {
-        
+        num_entries = 0;
     }
 
     if (!state->paused)

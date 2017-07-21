@@ -7,99 +7,6 @@
 #include "profiler_draw.cpp"
 #include "profiler_process.cpp"
 
-static void opengl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar *message, GLvoid *user_param)
-{
-    if (severity == GL_DEBUG_SEVERITY_HIGH)
-    {
-        char *error = (char *)message;
-        assert(error);
-    }
-}
-
-static void init_app_state()
-{
-    platform.init_opengl(&gl);
-    init_ui();
-
-    if (gl.DebugMessageCallback)
-    {
-        gl.Enable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        gl.DebugMessageCallback(opengl_debug_callback, 0);
-    }
-}
-
-extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
-{
-    PROFILER_FUNCTION();
-
-    AppState *app_state = memory->app_state;
-    if (!app_state)
-    {
-        app_state = memory->app_state = bootstrap_push_struct(AppState, app_memory);
-        platform = memory->platform;
-        profiler = memory->profiler;
-
-        init_app_state();
-    }
-
-    if (memory->app_dll_reloaded)
-    {
-        platform = memory->platform;
-        profiler = memory->profiler;
-
-        init_app_state();
-    }
-
-    ImVec4 clear_color = ImColor(85, 118, 152);
-    gl.Enable(GL_SCISSOR_TEST);
-    gl.Enable(GL_BLEND);
-
-    gl.Scissor(0, 0, window_width, window_height);
-    
-    gl.ClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    gl.Clear(GL_COLOR_BUFFER_BIT);
-
-    gl.Viewport(0, 0, window_width, window_height);
-
-    begin_ui(input, window_width, window_height);
-    {
-        if (ImGui::BeginMainMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
-            {
-                if (ImGui::MenuItem("Exit", "Alt+F4"))
-                {
-                    input->quit_requested = true;
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMainMenuBar();
-        }
-        
-        ImGui::SetNextWindowPos(ImVec2(10, 30));
-
-        ImGui::Begin("", 0, ImVec2(0, 0), 1.0f, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
-        {
-            PlatformMemoryStats memory_stats = platform.get_memory_stats();
-
-            ImGui::Text("Mouse: (%.1f,%.1f) ", global_imgui->MousePos.x, global_imgui->MousePos.y);
-            ImGui::Text("Allocs: %d ", global_imgui->MetricsAllocs);
-            ImGui::Text("Vertices: %d Indices: %3d  ", global_imgui->MetricsRenderVertices, global_imgui->MetricsRenderIndices);
-            ImGui::Text("Windows: %d ", global_imgui->MetricsActiveWindows);
-            ImGui::Text("Memory blocks: %d Size: %dK Used: %db ", memory_stats.num_memblocks, memory_stats.total_size/KB, memory_stats.total_used);
-            ImGui::Text("Frame time: %.2f ms ", 1000.0f / global_imgui->Framerate);
-        }
-        ImGui::End();
-
-        ShowExampleAppConsole(0);
-        ImGui::ShowTestWindow(0);
-
-        profiler_report(memory);
-    }
-    end_ui();
-
-}
-
 // TODO(dan): temp only, remove
 #pragma warning(push)
 #pragma warning(disable: 4996)
@@ -183,28 +90,34 @@ static LoadedWav load_wav(void *memory, usize size)
     return wav;
 }
 
-struct AudioRecord
+static void opengl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, GLchar *message, GLvoid *user_param)
 {
-    u64 total_samples_written;
-    u64 total_samples_read;
-    u32 num_buffer_samples;
-    f32 *samples;
-
-    f32 volume[2];
-    b32 muted;
-
-    union
+    if (severity == GL_DEBUG_SEVERITY_HIGH)
     {
-        AudioRecord *next;
-        AudioRecord *next_free;
-    };
-};
+        char *error = (char *)message;
+        assert(error);
+    }
+}
 
 static AudioRecord *allocate_audio_record(AudioState *state)
 {
     AudioRecord *record = 0;
     allocate_freelist(record, state->first_free_record, push_struct(&state->audio_memory, AudioRecord));
     return record;
+}
+
+static void init_recording(AudioState *state, AudioRecord *record, u16 num_channels, u16 bits_per_sample, u32 samples_per_sec)
+{
+    assert(num_channels == 2); // TODO(dan): 2 for now
+    assert(bits_per_sample == 32);
+
+    record->num_buffer_samples = 5 * samples_per_sec; // NOTE(dan): 1 sec buffer
+    record->samples = push_array(&state->audio_memory, record->num_buffer_samples, f32, align_no_clear(16));
+
+    record->total_samples_written = 0;
+    record->total_samples_read = 0;
+
+    record->volume[0] = record->volume[1] = 0.5f;
 }
 
 static AudioRecord *init_wav(AudioState *state)
@@ -237,107 +150,113 @@ static AudioRecord *init_wav(AudioState *state)
     return record;
 }
 
-static void init_recording(AudioState *state, AudioRecord *record, u16 num_channels, u16 bits_per_sample, u32 samples_per_sec)
-{
-    assert(num_channels == 2); // TODO(dan): 2 for now
-    assert(bits_per_sample == 32);
-
-    record->num_buffer_samples = 5 * samples_per_sec; // NOTE(dan): 1 sec buffer
-    record->samples = push_array(&state->audio_memory, record->num_buffer_samples, f32, align_no_clear(16));
-
-    record->total_samples_written = 0;
-    record->total_samples_read = 0;
-
-    record->volume[0] = record->volume[1] = 0.5f;
-}
-
 static void add_audio_record(AudioState *state, AudioRecord *record)
 {
     record->next = state->first_record;
     state->first_record = record;
 }
 
-static AudioState *get_or_init_audio_state(AppMemory *memory)
+static AppState *get_or_create_app_state(AppMemory *memory)
 {
-    AudioState *audio_state = memory->audio_state;
-    if (!audio_state)
+    AppState *app_state = memory->app_state;
+    if (!app_state)
     {
-        audio_state = memory->audio_state = bootstrap_push_struct(AudioState, audio_memory);
+        platform = memory->platform;
+        profiler = memory->profiler;
+
+        app_state = memory->app_state = bootstrap_push_struct(AppState, app_memory);
+    }
+
+    if (memory->app_dll_reloaded)
+    {
+        platform = memory->platform;
+        profiler = memory->profiler;
+    }
+    return app_state;
+}
+
+static AudioState *get_or_create_audio_state(AppState *app_state)
+{
+    AudioState *audio_state = &app_state->audio_state;
+    if (!audio_state->initialized)
+    {
+        audio_state->master_volume[0] = 1.0f;
+        audio_state->master_volume[1] = 1.0f;
 
         AudioRecord *local_record = audio_state->local_record = allocate_audio_record(audio_state);
         init_recording(audio_state, local_record, 2, 32, 44100);
         add_audio_record(audio_state, local_record);
 
-        // AudioRecord *test_wav = init_wav(audio_state);
-        // test_wav->muted = true;
-        // add_audio_record(audio_state, test_wav);
+        AudioRecord *test_wav = init_wav(audio_state);
+        add_audio_record(audio_state, test_wav);
+
+        audio_state->initialized = true;
     }
     return audio_state;
 }
 
 static void copy_audio_samples(f32 *src, f32 *dest, u32 num_samples)
 {
-    #if 1
-    memcpy(dest, src, num_samples * sizeof(f32));
-    #else
     for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
     {
         *dest++ = *src++;
     }
-    #endif
+}
+
+static void mix_audio_samples(f32 *src, f32 *dest, u32 num_samples, f32 master_volume[2], f32 volume[2])
+{
+    f32 total_volume = master_volume[0] * volume[0];
+    if (total_volume > 1.0f)
+    {
+        total_volume = 1.0f;
+    }
+    if (total_volume < 0.0f)
+    {
+        total_volume = 0.0f;
+    }
+
+    for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+    {
+        *dest++ += *src++ * total_volume;
+    }
 }
 
 extern "C" __declspec(dllexport) CAPTURE_SOUND_BUFFER(capture_sound_buffer)
 {
     PROFILER_FUNCTION();
 
-    AudioState *audio_state = get_or_init_audio_state(memory);
+    AppState *app_state = get_or_create_app_state(memory);
+    AudioState *audio_state = get_or_create_audio_state(app_state);
     AudioRecord *local_record = audio_state->local_record;
 
-    #if 0
+    u32 remaining_samples = local_record->num_buffer_samples - (local_record->total_samples_written % local_record->num_buffer_samples);
+    if (num_samples > remaining_samples)
     {
-        for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
-        {
-            f32 *sample = local_record->samples + ((local_record->total_samples_written + sample_index) % local_record->num_buffer_samples);
+        f32 *src1 = buffer;
+        f32 *dest1 = local_record->samples + (local_record->total_samples_written % local_record->num_buffer_samples);
+        u32 src1_sample_count = remaining_samples;
+        copy_audio_samples(dest1, src1, src1_sample_count);
 
-            *sample = buffer[sample_index];
-        }
-        local_record->total_samples_written += num_samples;
+        f32 *src2 = buffer + src1_sample_count;
+        f32 *dest2 = local_record->samples;
+        u32 src2_sample_count = num_samples - src1_sample_count;
+        copy_audio_samples(dest2, src2, src2_sample_count);
     }
-    #else
+    else
     {
-        u32 remaining_samples = local_record->num_buffer_samples - (local_record->total_samples_written % local_record->num_buffer_samples);
-        if (num_samples > remaining_samples)
-        {
-            f32 *src1 = buffer;
-            f32 *dest1 = local_record->samples + (local_record->total_samples_written % local_record->num_buffer_samples);
-            u32 src1_sample_count = remaining_samples;
-            copy_audio_samples(dest1, src1, src1_sample_count);
-
-            f32 *src2 = buffer + src1_sample_count;
-            f32 *dest2 = local_record->samples;
-            u32 src2_sample_count = num_samples - src1_sample_count;
-            copy_audio_samples(dest2, src2, src2_sample_count);
-        }
-        else
-        {
-            f32 *src = buffer;
-            f32 *dest = local_record->samples + (local_record->total_samples_written % local_record->num_buffer_samples);
-            copy_audio_samples(src, dest, num_samples);
-        }
-        local_record->total_samples_written += num_samples;
+        f32 *src = buffer;
+        f32 *dest = local_record->samples + (local_record->total_samples_written % local_record->num_buffer_samples);
+        copy_audio_samples(src, dest, num_samples);
     }
-    #endif
+    local_record->total_samples_written += num_samples;
 }
 
 extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 {
     PROFILER_FUNCTION();
 
-    platform = memory->platform;
-    profiler = memory->profiler;
-
-    AudioState *audio_state = get_or_init_audio_state(memory);
+    AppState *app_state = get_or_create_app_state(memory);
+    AudioState *audio_state = get_or_create_audio_state(app_state);
 
     for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
     {
@@ -352,7 +271,6 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
         }
 
         assert(record->total_samples_read <= record->total_samples_written);
-        assert((record->total_samples_written - record->total_samples_read) < 0xFFFFFFFF);
 
         u32 samples_available = (u32)(record->total_samples_written - record->total_samples_read);
         if (samples_available > num_samples)
@@ -360,54 +278,198 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
             samples_available = num_samples;
         }
 
-        #if 0
+        u32 remaining_samples = record->num_buffer_samples - (record->total_samples_read % record->num_buffer_samples);
+        if (samples_available > remaining_samples)
         {
-            for (u32 sample_index = 0; sample_index < samples_available; ++sample_index)
-            {
-                f32 *sample = record->samples + ((record->total_samples_read + sample_index) % record->num_buffer_samples);
+            f32 *src1 = record->samples + (record->total_samples_read % record->num_buffer_samples);
+            f32 *dest1 = buffer;
+            u32 src1_sample_count = remaining_samples;
+            mix_audio_samples(src1, dest1, src1_sample_count, audio_state->master_volume, record->volume);
 
-                buffer[sample_index] += *sample;
-            }
-            record->total_samples_read += samples_available;
+            f32 *src2 = record->samples;
+            f32 *dest2 = buffer + src1_sample_count;
+            u32 src2_sample_count = samples_available - src1_sample_count;
+            mix_audio_samples(src2, dest2, src2_sample_count, audio_state->master_volume, record->volume);
         }
-        #else
+        else
         {
-            u32 remaining_samples = record->num_buffer_samples - (record->total_samples_read % record->num_buffer_samples);
-
-            if (samples_available > remaining_samples)
-            {
-                f32 *src1 = record->samples + (record->total_samples_read % record->num_buffer_samples);
-                f32 *dest1 = buffer;
-                u32 src1_sample_count = remaining_samples;
-
-                for (u32 sample_index = 0; sample_index < src1_sample_count; ++sample_index)
-                {
-                    *dest1++ += *src1++;
-                }
-                record->total_samples_read += src1_sample_count;
-
-                f32 *src2 = record->samples;
-                f32 *dest2 = buffer + src1_sample_count;
-                u32 src2_sample_count = samples_available - src1_sample_count;
-
-                for (u32 sample_index = 0; sample_index < src2_sample_count; ++sample_index)
-                {
-                    *dest2++ += *src2++;
-                }
-                record->total_samples_read += src2_sample_count;
-            }
-            else
-            {
-                f32 *src = record->samples + (record->total_samples_read % record->num_buffer_samples);
-                f32 *dest = buffer;
-
-                for (u32 sample_index = 0; sample_index < samples_available; ++sample_index)
-                {
-                    *dest++ += *src++;
-                }
-                record->total_samples_read += samples_available;
-            }
+            f32 *src = record->samples + (record->total_samples_read % record->num_buffer_samples);
+            f32 *dest = buffer;
+            mix_audio_samples(src, dest, samples_available, audio_state->master_volume, record->volume);
         }
-        #endif
+        record->total_samples_read += samples_available;
     }
+}
+
+static void draw_vertical_slider(ImGuiID id, ImRect bb, f32 *value)
+{
+    ImGuiWindow *window = ImGui::GetCurrentWindow();
+    ImGuiContext *imgui = GImGui;
+
+    if (ImGui::ItemAdd(bb, &id))
+    {
+        int hovered = ImGui::IsHovered(bb, id);
+        if (hovered)
+        {
+            ImGui::SetHoveredID(id);
+        }
+        if (hovered && imgui->IO.MouseClicked[0])
+        {
+            ImGui::SetActiveID(id, window);
+            ImGui::FocusWindow(window);
+        }
+        ImGui::SliderBehavior(bb, id, value, 0.0f, 1.0f, 1.0f, 3, ImGuiSliderFlags_Vertical);
+    }
+}
+
+static void draw_volume_mixer(char *name, f32 *left, f32 *right)
+{
+    ImGuiWindow *window = ImGui::GetCurrentWindow();
+    ImGuiContext *imgui = GImGui;
+    ImGuiStyle *style = &imgui->Style;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
+    ImGui::BeginGroup();
+    {
+        ImVec2 name_size = ImGui::CalcTextSize(name, 0, true);
+        ImGui::Text(name);
+
+        ImVec2 size = ImVec2(15, 70);
+        ImGuiID left_id = window->GetID(left);
+        ImGuiID right_id = window->GetID(right);
+        ImVec2 min_left_corner = window->DC.CursorPos;
+        ImVec2 bottom_left = min_left_corner + ImVec2(size.x + style->FramePadding.x, 0.0f);
+        ImVec2 top_right = bottom_left + size;
+        ImRect left_bb = ImRect(min_left_corner, min_left_corner + size);
+        ImRect right_bb = ImRect(bottom_left, top_right);
+
+        draw_vertical_slider(left_id, left_bb, left);
+        ImGui::SameLine();
+        draw_vertical_slider(right_id, right_bb, right);
+       
+        ImVec2 min_p = left_bb.Min - style->FramePadding - ImVec2(0.0f, name_size.y + style->FramePadding.y);
+        ImVec2 max_p = right_bb.Max + style->FramePadding;
+
+        f32 total_width = right_bb.Max.x - left_bb.Min.x;
+        if (total_width < name_size.x)
+        {
+            max_p.x += (name_size.x - total_width);
+        }
+        
+        window->DrawList->AddRect(min_p, max_p, ImGui::GetColorU32(ImGuiCol_Border), style->FrameRounding);
+    }
+    ImGui::EndGroup();
+    ImGui::PopStyleVar(); 
+}
+
+inline void change_unit_and_size(char **unit, usize *size)
+{
+    *unit = "B";
+    if (*size > 1024*MB)
+    {
+        *unit = "GB";
+        *size /= GB;
+    }
+    else if (*size > 1024*KB)
+    {
+        *unit = "MB";
+        *size /= MB;
+    }
+    else if (*size > 1024)
+    {
+        *unit = "KB";
+        *size /= KB;
+    }
+}
+
+extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
+{
+    PROFILER_FUNCTION();
+
+    AppState *app_state = get_or_create_app_state(memory);
+    if (!app_state->initialized || memory->app_dll_reloaded)
+    {
+        platform.init_opengl(&gl);
+
+        init_ui();
+
+        if (gl.DebugMessageCallback)
+        {
+            gl.Enable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            gl.DebugMessageCallback(opengl_debug_callback, 0);
+        }
+
+        app_state->initialized = true;
+    }
+
+    AudioState *audio_state = get_or_create_audio_state(app_state);
+
+    ImVec4 clear_color = ImColor(85, 118, 152);
+    gl.Enable(GL_SCISSOR_TEST);
+    gl.Enable(GL_BLEND);
+
+    gl.Scissor(0, 0, window_width, window_height);
+    
+    gl.ClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+    gl.Clear(GL_COLOR_BUFFER_BIT);
+
+    gl.Viewport(0, 0, window_width, window_height);
+
+    begin_ui(input, window_width, window_height);
+    {
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("File"))
+            {
+                if (ImGui::MenuItem("Exit", "Alt+F4"))
+                {
+                    input->quit_requested = true;
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+        
+        ImGui::SetNextWindowPos(ImVec2(10, 30));
+
+        ImGui::Begin("Info", 0, ImVec2(0, 0), 1.0f, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
+        {
+            PlatformMemoryStats memory_stats = platform.get_memory_stats();
+
+            char *total_size_unit = "B";
+            usize total_size = memory_stats.total_size;
+            change_unit_and_size(&total_size_unit, &total_size);
+
+            char *total_used_unit = "B";
+            usize total_used = memory_stats.total_used;
+            change_unit_and_size(&total_used_unit, &total_used);
+
+            ImGui::Text("Mouse: (%.1f,%.1f) ", global_imgui->MousePos.x, global_imgui->MousePos.y);
+            ImGui::Text("Allocs: %d ", global_imgui->MetricsAllocs);
+            ImGui::Text("Vertices: %d Indices: %3d  ", global_imgui->MetricsRenderVertices, global_imgui->MetricsRenderIndices);
+            ImGui::Text("Windows: %d ", global_imgui->MetricsActiveWindows);
+            ImGui::Text("Memory blocks: %d Total: %d %s Used: %d %s ", memory_stats.num_memblocks, total_size, total_size_unit, total_used, total_used_unit);
+            ImGui::Text("Frame time: %.2f ms", 1000.0f / global_imgui->Framerate);
+        }
+        ImGui::End();
+
+        ImGui::Begin("Volume Mixer", 0, ImVec2(0, 0), 1.0f, 0);
+        {
+            draw_volume_mixer("master", &audio_state->master_volume[0], &audio_state->master_volume[1]);
+            ImGui::SameLine();
+
+            for (AudioRecord *record = audio_state->first_record; record; record = record->next)
+            {
+                draw_volume_mixer("channel", &record->volume[0], &record->volume[1]);
+                ImGui::SameLine();
+            }
+        }
+        ImGui::End();
+
+        ShowExampleAppConsole(0);
+        ImGui::ShowTestWindow(0);
+
+        profiler_report(memory);
+    }
+    end_ui();
 }
