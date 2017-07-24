@@ -24,6 +24,7 @@ struct AudioState
     b32 initialized;
 
     MemoryStack audio_memory;
+    MemoryStack mixer_memory;
 
     AudioRecord *local_record;
     AudioRecord *first_record;

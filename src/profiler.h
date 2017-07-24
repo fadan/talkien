@@ -54,11 +54,19 @@ extern Profiler *profiler;
 #define PROFILER_BEGIN_(guid)   if (profiler) { PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_Begin) }
 #define PROFILER_END_(guid)     if (profiler) { PROFILER_PUSH_ENTRY(guid, ProfilerEntryType_End) }
 
-#define PROFILER_BEGIN(name)    { PROFILER_BEGIN_(PROFILER_GUID(name)); }
-#define PROFILER_END()          { PROFILER_END_(PROFILER_GUID("END_BLOCK")); }
+#if 1
+    #define PROFILER_BEGIN(name)    { PROFILER_BEGIN_(PROFILER_GUID(name)); }
+    #define PROFILER_END()          { PROFILER_END_(PROFILER_GUID("END_BLOCK")); }
 
-#define PROFILER_BLOCK(name)    PROFILER_BLOCK_(PROFILER_GUID(name))
-#define PROFILER_FUNCTION()     PROFILER_BLOCK_(__FUNCTION__)
+    #define PROFILER_BLOCK(name)    PROFILER_BLOCK_(PROFILER_GUID(name))
+    #define PROFILER_FUNCTION()     PROFILER_BLOCK_(__FUNCTION__)
+#else
+    #define PROFILER_BEGIN(...)
+    #define PROFILER_END(...)
+
+    #define PROFILER_BLOCK(...)
+    #define PROFILER_FUNCTION(...)
+#endif
 
 struct ProfilerBlock
 {

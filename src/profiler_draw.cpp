@@ -1,8 +1,10 @@
 
 static void profiler_draw_frame_history(ProfilerState *state, f32 graph_size_x, f32 graph_size_y, f32 scale_min, f32 scale_max)
 {
-    ImGui::SetNextWindowSize(ImVec2(graph_size_x + 30, graph_size_y + 80));
-    ImGui::Begin("Frame History");
+    // ImGui::SetNextWindowSize(ImVec2(graph_size_x + 30, graph_size_y + 80));
+    // ImGui::Begin("Frame History");
+    // ImGui::BeginDock("Frame History", 0, 0);
+    begin_dock("Frame History", 0, 0);
     {
         ImGuiWindow *window = ImGui::GetCurrentWindow();
         ImGuiContext *imgui = GImGui;
@@ -102,7 +104,9 @@ static void profiler_draw_frame_history(ProfilerState *state, f32 graph_size_x, 
         ImGui::PushItemWidth(100.0f);
         ImGui::DragInt("", &state->pause_condition_ms, 1, 0, 1000, "%.0f ms");
     }
-    ImGui::End();
+    end_dock();
+    // ImGui::EndDock();
+    // ImGui::End();
 }
 
 static f32 profiler_color_table[][3] =
@@ -183,7 +187,9 @@ static void profiler_draw_bars(ProfilerState *state, ImGuiWindow *window, ImRect
 
 static void profiler_draw_timelines(ProfilerState *state, f32 graph_size_x, f32 graph_size_y)
 {
-    ImGui::Begin("Profiler");
+    // ImGui::Begin("Profiler");
+    // ImGui::BeginDock("Profiler", 0, 0);
+    begin_dock("Profiler", 0, 0);
     {
         graph_size_x = ImGui::GetWindowWidth() - 30;
         graph_size_y = ImGui::GetWindowHeight() - 80;
@@ -236,7 +242,9 @@ static void profiler_draw_timelines(ProfilerState *state, f32 graph_size_x, f32 
             profiler_draw_bars(state, window, entry_rect, node, lane_height, lane_height, 2);
         }
     }
-    ImGui::End();
+    end_dock();
+    // ImGui::EndDock();
+    // ImGui::End();
 }
 
 struct ProfilerStats
@@ -292,7 +300,9 @@ inline void profiler_end_stats(ProfilerStats *stats)
 
 static void profiler_draw_clocks(ProfilerState *state, f32 graph_size_x, f32 graph_size_y)
 {
-    ImGui::Begin("Clocks");
+    // ImGui::Begin("Clocks");
+    // ImGui::BeginDock("Clocks", 0, 0);
+    begin_dock("Clocks", 0, 0);
     {
         graph_size_x = ImGui::GetWindowWidth() - 30;
         graph_size_y = ImGui::GetWindowHeight() - 80;
@@ -370,5 +380,7 @@ static void profiler_draw_clocks(ProfilerState *state, f32 graph_size_x, f32 gra
         }
         end_temp_memory(temp_memory);
     }
-    ImGui::End();
+    end_dock();
+    // ImGui::EndDock();
+    // ImGui::End();
 }

@@ -111,14 +111,41 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #define F32_MAX 3.402823E+38F
 
 #if COMPILER == COMPILER_MSVC
+    // union __declspec(intrin_type) __declspec(align(16)) __m128 
+    // {
+    //     f32 m128_f32[4];
+    //     u64 m128_u64[2];
+    //     i8  m128_i8[16];
+    //     i16 m128_i16[8];
+    //     i32 m128_i32[4];
+    //     i64 m128_i64[2];
+    //     u8  m128_u8[16];
+    //     u16 m128_u16[8];
+    //     u32 m128_u32[4];
+    // };
+
+    extern "C" void _mm_pause();
+    // extern "C" __m128 _mm_setzero_ps();
+    // extern "C" __m128 _mm_set_ps1(float a);
+    // extern "C" __m128 _mm_set_ps(float a, float b, float c, float d);
+    // extern "C" __m128 _mm_load_ps(float *a);
+    // extern "C" void _mm_store_ps(float *mem_addr, __m128 a);
+    // extern "C" __m128 _mm_mul_ps(__m128 a, __m128 b);
+
+    // extern "C" __m128 _mm_loadu_ps(float *a);
+    // extern "C" void _mm_storeu_ps(float *v, __m128 a);
+
+    // extern "C" __m128 _mm_min_ps(__m128 a, __m128 b);
+    // extern "C" __m128 _mm_max_ps(__m128 a, __m128 b);
+
+    extern "C" unsigned __int64 __rdtsc();
+    extern "C" unsigned __int64 __readgsqword(unsigned long offset);
+    
     extern "C" long _InterlockedExchangeAdd(long volatile *addend, long value);
     extern "C" __int64 _InterlockedExchangeAdd64(__int64 volatile *addend, __int64 value);
     extern "C" long _InterlockedExchange(long volatile *target, long value);
     extern "C" __int64 _InterlockedExchange64(__int64 volatile *target, __int64 value);
     extern "C" long _InterlockedCompareExchange(long volatile *destination, long exchange, long comparand); 
-    extern "C" void _mm_pause();
-    extern "C" unsigned __int64 __rdtsc();
-    extern "C" unsigned __int64 __readgsqword(unsigned long offset);
 
     inline u32 atomic_add_u32(u32 volatile *addend, u32 value)
     {
@@ -139,7 +166,6 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
         u32 result = _InterlockedExchange((long volatile *)target, value);
         return result;
     }
-
 
     inline u64 atomic_exchange_u64(u64 volatile *target, u64 value)
     {
@@ -497,6 +523,17 @@ inline void *bootstrap_push_size(usize size, usize offset, MemoryStackParams par
     *(MemoryStack *)((u8 *)result + offset) = bootstrap;
     
     return result;
+}
+
+inline void init_memory_stack(MemoryStack *memstack, usize size, MemoryStackParams params = default_params())
+{
+    assert(!memstack->memblock); // NOTE(dan): already initialized
+
+    if (!memstack->memblock)
+    {
+        void *dummy = push_size(memstack, size, params);
+        memstack->memblock->used = 0;
+    }
 }
 
 inline TempMemoryStack begin_temp_memory(MemoryStack *memstack)
