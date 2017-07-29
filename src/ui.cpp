@@ -85,6 +85,188 @@ inline void check_bindings(GLint *buffer, GLint num_elements)
     }
 }
 
+inline i32 get_dock_index(DockContext *context, Dock *dock)
+{
+    i32 index = -1;
+    if (dock)
+    {
+        for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+        {
+            if (dock == context->docks[dock_index])
+            {
+                index = dock_index;
+                break;
+            }
+        }
+    }
+    return index;
+}
+
+inline Dock *get_dock_by_index(DockContext *context, i32 index)
+{
+    Dock *dock = 0;
+    if (index >= 0 && index < context->docks.size())
+    {
+        dock = context->docks[index];
+    }
+    return dock;
+}
+
+#define UI_SETTINGS_ID(a, b, c, d)  (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+#define UI_SETTINGS_FILE_ID         UI_SETTINGS_ID('u', 'i', 's', 'f')
+#define UI_SETTINGS_FILE_VERSION    1
+
+struct UISettingsFileHeader
+{
+    u32 file_id;
+    u32 file_version;
+    u32 dock_size;
+    i32 num_docks;
+};
+
+struct UISettingsFileData
+{
+    i8 parent_index;           //  1     1
+    i8 prev_index;             //  1     2
+    i8 next_index;             //  1     3
+    i8 children_index[2];      //  2     5
+    i16 pos[2];                //  4     9
+    i16 size[2];               //  4    13
+    i8 active;                 //  1    14
+    i8 opened;                 //  1    15
+    u8 status;                 //  1    16
+    char location[16];         // 16    32
+    char label[32];            // 32    64 bytes
+};
+
+struct UISettingsFile
+{
+    UISettingsFileHeader *header;
+    UISettingsFileData *data;
+};
+
+static UISettingsFile push_ui_settings(DockContext *context, MemoryStack *memstack)
+{
+    UISettingsFileHeader *header = push_struct(memstack, UISettingsFileHeader);
+    header->file_id = UI_SETTINGS_FILE_ID;
+    header->file_version = UI_SETTINGS_FILE_VERSION;
+    header->dock_size = sizeof(UISettingsFileData);
+    header->num_docks = context->docks.size();
+
+    UISettingsFileData *data_base = push_array(memstack, context->docks.size(), UISettingsFileData);
+    for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+    {
+        Dock *src = context->docks[dock_index];
+        UISettingsFileData *dest = data_base + dock_index;
+
+        dest->parent_index = (i8)get_dock_index(context, src->parent);
+        dest->prev_index = (i8)get_dock_index(context, src->prev_tab);
+        dest->next_index = (i8)get_dock_index(context, src->next_tab);
+        dest->children_index[0] = (i8)get_dock_index(context, src->children[0]);
+        dest->children_index[1] = (i8)get_dock_index(context, src->children[1]);
+        dest->pos[0] = (i16)src->pos.x;
+        dest->pos[1] = (i16)src->pos.y;
+        dest->size[0] = (i16)src->size.x;
+        dest->size[1] = (i16)src->size.y;
+        dest->active = (i8)src->active;
+        dest->opened = (i8)src->opened;
+        dest->status = (u8)src->status;
+
+        copy_string_and_null_terminate(src->location, dest->location, array_count(dest->location));
+        copy_string_and_null_terminate(src->label, dest->label, array_count(dest->label));
+    }
+
+    UISettingsFile settings = {0};
+    settings.header = header;
+    settings.data = data_base;
+    return settings;
+}
+
+// TODO(dan): dont use stdio
+static void save_ui_settings_to_file(char *filename, DockContext *context, MemoryStack *memstack)
+{
+    TempMemoryStack temp_memory = begin_temp_memory(memstack);
+    {
+        FILE *file = fopen(filename, "wb");
+        if (file)
+        {
+            UISettingsFile settings = push_ui_settings(context, memstack);
+            u32 header_size = sizeof(*settings.header);
+            u32 data_size = sizeof(*settings.data) * context->docks.size();
+
+            fwrite(settings.header, header_size, 1, file);
+            fwrite(settings.data, data_size, 1, file);
+            fclose(file);
+        }
+    }
+    end_temp_memory(temp_memory);
+}
+
+static void load_ui_settings_from_file(char *filename, DockContext *context)
+{
+    LoadedFile file = load_file(filename);
+    if (file.contents && file.size > sizeof(UISettingsFileHeader))
+    {
+        UISettingsFileHeader *header = (UISettingsFileHeader *)file.contents;
+        u32 file_size = sizeof(UISettingsFileHeader) + header->num_docks * header->dock_size;
+
+        if (header->file_id == UI_SETTINGS_FILE_ID && header->file_version == UI_SETTINGS_FILE_VERSION && header->dock_size == sizeof(UISettingsFileData) && file_size == file.size)
+        {
+            for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+            {
+                deinit_dock(context->docks[dock_index]);
+                ImGui::MemFree(context->docks[dock_index]);
+            }
+            context->docks.clear();
+
+            for (i32 dock_index = 0; dock_index < header->num_docks; ++dock_index)
+            {
+                Dock *dock = (Dock *)ImGui::MemAlloc(sizeof(Dock));
+                init_dock(dock);
+
+                context->docks.push_back(dock);
+            }
+
+            UISettingsFileData *dock_base = (UISettingsFileData *)(header + 1);
+            for (i32 dock_index = 0; dock_index < header->num_docks; ++dock_index)
+            {
+                UISettingsFileData *src = dock_base + dock_index;
+                Dock *dest = (Dock *)context->docks[dock_index];
+
+                dest->parent = get_dock_by_index(context, src->parent_index);
+                dest->prev_tab = get_dock_by_index(context, src->prev_index);
+                dest->next_tab = get_dock_by_index(context, src->next_index);
+                dest->children[0] = get_dock_by_index(context, src->children_index[0]);
+                dest->children[1] = get_dock_by_index(context, src->children_index[1]);
+                dest->pos.x = (f32)src->pos[0];
+                dest->pos.y = (f32)src->pos[1];
+                dest->size.x = (f32)src->size[0];
+                dest->size.y = (f32)src->size[1];
+                dest->active = src->active;
+                dest->opened = src->opened;
+                dest->status = (Status)src->status;
+                dest->label = ImStrdup(src->label);
+                dest->id = ImHash(dest->label, 0);
+
+                copy_string(src->location, dest->location, array_count(dest->location));                
+            }
+        }
+    }
+    close_file(file);
+}   
+
+#define SAVE_UI_STATE_INTERVAL_SECS 5.0f
+static void save_ui_state(MemoryStack *memstack)
+{
+    static f32 last_save = 0;
+    if (last_save > SAVE_UI_STATE_INTERVAL_SECS)
+    {
+        save_ui_settings_to_file("ui_state.dat", global_dock_context, memstack);
+        last_save = 0;
+    }
+    last_save += global_imgui->DeltaTime;
+}
+
 static void init_ui()
 {
     u8 *pixels;
@@ -252,6 +434,11 @@ static void init_ui()
     global_imgui->KeyMap[ImGuiKey_X] = get_scan_code_offset(button_x);
     global_imgui->KeyMap[ImGuiKey_Y] = get_scan_code_offset(button_y);
     global_imgui->KeyMap[ImGuiKey_Z] = get_scan_code_offset(button_z);
+
+    global_imgui->IniFilename = 0;
+
+    init_dock_context();
+    load_ui_settings_from_file("ui_state.dat", global_dock_context);
 }
 
 static void begin_ui(PlatformInput *input, i32 window_width, i32 window_height)

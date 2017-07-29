@@ -1,9 +1,6 @@
 
 static void profiler_draw_frame_history(ProfilerState *state, f32 graph_size_x, f32 graph_size_y, f32 scale_min, f32 scale_max)
 {
-    // ImGui::SetNextWindowSize(ImVec2(graph_size_x + 30, graph_size_y + 80));
-    // ImGui::Begin("Frame History");
-    // ImGui::BeginDock("Frame History", 0, 0);
     begin_dock("Frame History", 0, 0);
     {
         ImGuiWindow *window = ImGui::GetCurrentWindow();
@@ -105,23 +102,30 @@ static void profiler_draw_frame_history(ProfilerState *state, f32 graph_size_x, 
         ImGui::DragInt("", &state->pause_condition_ms, 1, 0, 1000, "%.0f ms");
     }
     end_dock();
-    // ImGui::EndDock();
-    // ImGui::End();
 }
 
 static f32 profiler_color_table[][3] =
 {
-    {0, 1, 0},
-    {0, 0, 1},
-    {1, 0, 0},
-    {1, 1, 0},
-    {0, 1, 1},
-    {1, 0, 1},
-    {1, 0.5f, 0},
-    {1, 0, 0.5f},
-    {0.5f, 1, 0},
-    {0, 1, 0.5f},
-    {0.5f, 0, 1},
+    {0.022444689656815f, 0.062681542738658f, 0.953137894604880f},
+    {0.060403620386684f, 0.843838480694140f, 0.106328551241350f},
+    {0.425652011961510f, 0.952013393841690f, 0.294698143980790f},
+    {0.212771029310660f, 0.941292916397230f, 0.319362885933070f},
+    {0.591526856921390f, 0.481594803967320f, 0.476606483327510f},
+    {0.287718599796160f, 0.323718159144610f, 0.529062032945950f},
+    {0.681730348468630f, 0.873615925141430f, 0.038553657959473f},
+    {0.289549649362240f, 0.965731338116220f, 0.476573566662410f},
+    {0.298143894084800f, 0.145926108651760f, 0.090228680097604f},
+    {0.589253614931020f, 0.152811550606420f, 0.371204840657860f},
+    {0.110356937213970f, 0.284538475463420f, 0.050405806419629f},
+    {0.956624045016530f, 0.508656650552830f, 0.581550150449180f},
+    {0.349674719548630f, 0.410068038110650f, 0.504552860047930f},
+    {0.252513419954350f, 0.668345759933980f, 0.776945982955840f},
+    {0.939900326514570f, 0.377263989940870f, 0.169587799426910f},
+    {0.932281938815620f, 0.860902942186640f, 0.844866368381710f},
+    {0.430168614457440f, 0.089652848471726f, 0.926156314055510f},
+    {0.561106160544370f, 0.653700258887230f, 0.173027485223970f},
+    {0.430910340245310f, 0.088405717205445f, 0.092759450009446f},
+    {0.095168579879761f, 0.834132247527190f, 0.219562600003350f},
 };
 
 inline void profiler_random_color(f32 *color)
@@ -135,6 +139,14 @@ inline void profiler_random_color(f32 *color)
     {
         index = 0;
     }
+}
+
+inline void profiler_random_color_from_pointer(f32 *color, void *pointer)
+{
+    u32 index = (u32)pointer % array_count(profiler_color_table);
+    color[0] = profiler_color_table[index][0];
+    color[1] = profiler_color_table[index][1];
+    color[2] = profiler_color_table[index][2];
 }
 
 static void profiler_draw_bars(ProfilerState *state, ImGuiWindow *window, ImRect graph_rect, ProfilerNode *root_node, f32 lane_stride, f32 lane_height, u32 depth_remaining)
@@ -166,12 +178,12 @@ static void profiler_draw_bars(ProfilerState *state, ImGuiWindow *window, ImRect
 
         window->DrawList->AddRect(region_rect.Min, region_rect.Max, color_line);
 
-        f32 color_f32x4[4];
-        profiler_random_color(color_f32x4);
+        f32 color_f32x3[3];
+        profiler_random_color_from_pointer(color_f32x3, element->guid);
 
-        ImU32 color = (ImU32)ImColor(color_f32x4[0], color_f32x4[1], color_f32x4[2], 1.0f);
+        ImU32 color = (ImU32)ImColor(color_f32x3[0], color_f32x3[1], color_f32x3[2], 1.0f);
 
-        window->DrawList->AddRectFilled(region_rect.Min, region_rect.Max, color_line);
+        window->DrawList->AddRectFilled(region_rect.Min, region_rect.Max, color);
 
         if (ImGui::IsHovered(region_rect, 0))
         {
@@ -187,8 +199,6 @@ static void profiler_draw_bars(ProfilerState *state, ImGuiWindow *window, ImRect
 
 static void profiler_draw_timelines(ProfilerState *state, f32 graph_size_x, f32 graph_size_y)
 {
-    // ImGui::Begin("Profiler");
-    // ImGui::BeginDock("Profiler", 0, 0);
     begin_dock("Profiler", 0, 0);
     {
         graph_size_x = ImGui::GetWindowWidth() - 30;
@@ -243,8 +253,6 @@ static void profiler_draw_timelines(ProfilerState *state, f32 graph_size_x, f32 
         }
     }
     end_dock();
-    // ImGui::EndDock();
-    // ImGui::End();
 }
 
 struct ProfilerStats
@@ -300,8 +308,6 @@ inline void profiler_end_stats(ProfilerStats *stats)
 
 static void profiler_draw_clocks(ProfilerState *state, f32 graph_size_x, f32 graph_size_y)
 {
-    // ImGui::Begin("Clocks");
-    // ImGui::BeginDock("Clocks", 0, 0);
     begin_dock("Clocks", 0, 0);
     {
         graph_size_x = ImGui::GetWindowWidth() - 30;
@@ -381,6 +387,4 @@ static void profiler_draw_clocks(ProfilerState *state, f32 graph_size_x, f32 gra
         end_temp_memory(temp_memory);
     }
     end_dock();
-    // ImGui::EndDock();
-    // ImGui::End();
 }

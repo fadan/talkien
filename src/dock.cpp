@@ -14,6 +14,8 @@ static void init_dock(Dock *dock)
     dock->first = true;
     dock->location[0] = 0;
     dock->children[0] = dock->children[1] = 0;
+    dock->last_frame = 0;
+    dock->invalid_frames = 0;
 }
 
 static void deinit_dock(Dock *dock)

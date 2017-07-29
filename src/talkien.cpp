@@ -7,44 +7,6 @@
 #include "profiler_draw.cpp"
 #include "profiler_process.cpp"
 
-// TODO(dan): temp only, remove
-#pragma warning(push)
-#pragma warning(disable: 4996)
-
-#define _CRT_SECURE_NO_WARNINGS
-#include <stdio.h>
-
-struct LoadedFile
-{
-    u32 size;
-    void *contents;
-};
-
-static LoadedFile load_file(char *filename)
-{
-    LoadedFile file = {0};
-    FILE *handle = fopen(filename, "r");
-    if (handle)
-    {
-        fseek(handle, 0, SEEK_END);
-        file.size = ftell(handle);
-        file.contents = malloc(file.size);
-        fseek(handle, 0, SEEK_SET);
-        fread(file.contents, file.size, 1, handle);
-        fclose(handle);
-    }
-    return file;
-}
-
-static void close_file(LoadedFile file)
-{
-    if (file.contents)
-    {
-        free(file.contents);
-    }
-}
-#pragma warning(pop)
-
 static LoadedWav load_wav(void *memory, usize size)
 {
     LoadedWav wav = {0};
@@ -521,9 +483,6 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             gl.DebugMessageCallback(opengl_debug_callback, 0);
         }
 
-        init_dock_context();
-        // ImGui::InitDockContext();
-
         app_state->initialized = true;
     }
 
@@ -542,24 +501,22 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 
     begin_ui(input, window_width, window_height);
     {
-        // if (ImGui::BeginMainMenuBar())
-        // {
-        //     if (ImGui::BeginMenu("File"))
-        //     {
-        //         if (ImGui::MenuItem("Exit", "Alt+F4"))
-        //         {
-        //             input->quit_requested = true;
-        //         }
-        //         ImGui::EndMenu();
-        //     }
-        //     ImGui::EndMainMenuBar();
-        // }
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("File"))
+            {
+                if (ImGui::MenuItem("Exit", "Alt+F4"))
+                {
+                    input->quit_requested = true;
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
 
-        // ImGui::SetNextWindowPos(ImVec2(10, 30));
+        f32 menubar_height = 20.0f;
+        root_dock(ImVec2(0, menubar_height), ImVec2((f32)window_width, (f32)window_height - menubar_height));
 
-        // ImGui::Begin("Info", 0, ImVec2(0, 0), 1.0f, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
-        // ImGui::BeginDock("Info", 0, ImGuiWindowFlags_NoTitleBar);
-        // TODO(dan): check flag
         begin_dock("Info", 0, 0);
         {
             PlatformMemoryStats memory_stats = platform.get_memory_stats();
@@ -580,11 +537,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             ImGui::Text("Frame time: %.2f ms", 1000.0f / global_imgui->Framerate);
         }
         end_dock();
-        // ImGui::EndDock();
-        // ImGui::End();
 
-        // ImGui::Begin("Volume Mixer", 0, ImVec2(0, 0), 1.0f, 0);
-        // ImGui::BeginDock("Volume Mixer", 0, 0);
         begin_dock("Volume Mixer", 0, 0);
         {
             draw_volume_mixer("master", &audio_state->master_volume[0], &audio_state->master_volume[1]);
@@ -597,8 +550,6 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             }
         }
         end_dock();
-        // ImGui::EndDock();
-        // ImGui::End();
 
         // ShowExampleAppConsole(0);
         // ImGui::ShowTestWindow(0);
@@ -606,4 +557,6 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         profiler_report(memory);
     }
     end_ui();
+
+    save_ui_state(&app_state->app_memory);
 }

@@ -599,3 +599,42 @@ typedef CAPTURE_SOUND_BUFFER(CaptureSoundBuffer);
 static CAPTURE_SOUND_BUFFER(capture_sound_buffer_stub)
 {
 }
+
+// TODO(dan): temp only, remove
+#pragma warning(push)
+#pragma warning(disable: 4996)
+
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+#include <malloc.h>
+
+struct LoadedFile
+{
+    u32 size;
+    void *contents;
+};
+
+static LoadedFile load_file(char *filename)
+{
+    LoadedFile file = {0};
+    FILE *handle = fopen(filename, "r");
+    if (handle)
+    {
+        fseek(handle, 0, SEEK_END);
+        file.size = ftell(handle);
+        file.contents = malloc(file.size);
+        fseek(handle, 0, SEEK_SET);
+        fread(file.contents, file.size, 1, handle);
+        fclose(handle);
+    }
+    return file;
+}
+
+static void close_file(LoadedFile file)
+{
+    if (file.contents)
+    {
+        free(file.contents);
+    }
+}
+#pragma warning(pop)

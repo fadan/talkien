@@ -33,3 +33,22 @@ inline b32 strings_are_equals(char *a, char *b)
     }
     return equals;
 }
+
+static void copy_string(char *src, char *dest, u32 dest_size)
+{
+    u32 dest_length = 0;
+    while (*src && dest_length++ < dest_size)
+    {
+        *dest++ = *src++;
+    }
+}
+
+static void copy_string_and_null_terminate(char *src, char *dest, u32 dest_size)
+{
+    u32 dest_length = 0;
+    while (*src && dest_length++ < dest_size)
+    {
+        *dest++ = *src++;
+    }
+    dest[dest_length] = 0;
+}
