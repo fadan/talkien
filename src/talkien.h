@@ -39,6 +39,7 @@ struct AppState
 
     MemoryStack app_memory;
     AudioState audio_state;
+    UIState ui_state;
 };
 
 // NOTE(dan): test audio

@@ -360,7 +360,7 @@ static void profiler_gather(ProfilerState *state, ProfilerEntry *entries, u32 nu
     }
 }
 
-static void profiler_report(AppMemory *memory)
+static void profiler_report(UIState *ui_state, AppMemory *memory)
 {
     PROFILER_FUNCTION();
 
@@ -388,7 +388,7 @@ static void profiler_report(AppMemory *memory)
 
     profiler_gather(state, profiler->entries[entry_array_index], num_entries);
 
-    profiler_draw_frame_history(state, 600, 100, 0.01f, 0.02f);
-    profiler_draw_timelines(state, 400, 200);
-    profiler_draw_clocks(state, 400, 200);
+    profiler_draw_frame_history(ui_state, state, 600, 100, 0.01f, 0.02f);
+    profiler_draw_timelines(ui_state, state, 400, 200);
+    profiler_draw_clocks(ui_state, state, 400, 200);
 }

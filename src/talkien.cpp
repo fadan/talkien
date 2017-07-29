@@ -1,9 +1,10 @@
 #include "platform.h"
 #include "opengl.h"
+#include "ui.h"
 #include "talkien.h"
-#include "ui.cpp"
 #include "profiler_process.h"
 
+#include "ui.cpp"
 #include "profiler_draw.cpp"
 #include "profiler_process.cpp"
 
@@ -471,11 +472,12 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
     PROFILER_FUNCTION();
 
     AppState *app_state = get_or_create_app_state(memory);
+    UIState *ui_state = &app_state->ui_state;
     if (!app_state->initialized || memory->app_dll_reloaded)
     {
         platform.init_opengl(&gl);
 
-        init_ui();
+        init_ui(ui_state);
 
         if (gl.DebugMessageCallback)
         {
@@ -499,7 +501,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 
     gl.Viewport(0, 0, window_width, window_height);
 
-    begin_ui(input, window_width, window_height);
+    begin_ui(ui_state, input, window_width, window_height);
     {
         if (ImGui::BeginMainMenuBar())
         {
@@ -515,9 +517,9 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         }
 
         f32 menubar_height = 20.0f;
-        root_dock(ImVec2(0, menubar_height), ImVec2((f32)window_width, (f32)window_height - menubar_height));
+        root_dock(ui_state, ImVec2(0, menubar_height), ImVec2((f32)window_width, (f32)window_height - menubar_height));
 
-        begin_dock("Info", 0, 0);
+        begin_dock(ui_state, "Info", 0, 0);
         {
             PlatformMemoryStats memory_stats = platform.get_memory_stats();
 
@@ -529,16 +531,16 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             usize total_used = memory_stats.total_used;
             change_unit_and_size(&total_used_unit, &total_used);
 
-            ImGui::Text("Mouse: (%.1f,%.1f) ", global_imgui->MousePos.x, global_imgui->MousePos.y);
-            ImGui::Text("Allocs: %d ", global_imgui->MetricsAllocs);
-            ImGui::Text("Vertices: %d Indices: %3d  ", global_imgui->MetricsRenderVertices, global_imgui->MetricsRenderIndices);
-            ImGui::Text("Windows: %d ", global_imgui->MetricsActiveWindows);
+            ImGui::Text("Mouse: (%.1f,%.1f) ", ui_state->imgui_io->MousePos.x, ui_state->imgui_io->MousePos.y);
+            ImGui::Text("Allocs: %d ", ui_state->imgui_io->MetricsAllocs);
+            ImGui::Text("Vertices: %d Indices: %3d  ", ui_state->imgui_io->MetricsRenderVertices, ui_state->imgui_io->MetricsRenderIndices);
+            ImGui::Text("Windows: %d ", ui_state->imgui_io->MetricsActiveWindows);
             ImGui::Text("Memory blocks: %d Total: %d %s Used: %d %s ", memory_stats.num_memblocks, total_size, total_size_unit, total_used, total_used_unit);
-            ImGui::Text("Frame time: %.2f ms", 1000.0f / global_imgui->Framerate);
+            ImGui::Text("Frame time: %.2f ms", 1000.0f / ui_state->imgui_io->Framerate);
         }
-        end_dock();
+        end_dock(ui_state);
 
-        begin_dock("Volume Mixer", 0, 0);
+        begin_dock(ui_state, "Volume Mixer", 0, 0);
         {
             draw_volume_mixer("master", &audio_state->master_volume[0], &audio_state->master_volume[1]);
             ImGui::SameLine();
@@ -549,14 +551,14 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
                 ImGui::SameLine();
             }
         }
-        end_dock();
+        end_dock(ui_state);
 
         // ShowExampleAppConsole(0);
         // ImGui::ShowTestWindow(0);
 
-        profiler_report(memory);
+        profiler_report(ui_state, memory);
     }
-    end_ui();
+    end_ui(ui_state);
 
-    save_ui_state(&app_state->app_memory);
+    save_ui_state(ui_state, &app_state->app_memory);
 }

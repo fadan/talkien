@@ -22,9 +22,39 @@ static void init_dock(Dock *dock)
     dock->location[0] = 0;
 }
 
-static void deinit_dock(Dock *dock)
+inline Dock *allocate_dock(UIState *context)
 {
-    dock->label[0] = 0;
+    Dock *dock = 0;
+    allocate_freelist(dock, context->first_free_dock, push_struct(&context->ui_memory, Dock));
+    dock->next = context->first_dock;
+    context->first_dock = dock;
+    return dock;
+}
+
+inline void deallocate_dock(UIState *context, Dock *dock)
+{
+    deallocate_freelist(dock, context->first_free_dock);
+}
+
+static void remove_dock(UIState *context, Dock *dock)
+{
+    for (Dock *prev = 0, *current = context->first_dock; current; current = current->next)
+    {
+        if (current == dock)
+        {
+            if (!prev)
+            {
+                context->first_dock = current->next;
+            }
+            else
+            {
+                prev->next = current->next;
+            }
+
+            deallocate_dock(context, dock);
+            break;
+        }
+    }
 }
 
 static b32 is_horizontal(Dock *dock)
@@ -177,36 +207,33 @@ static void set_children_pos_size(Dock *dock,  ImVec2 pos, ImVec2 size)
     }
 }
 
-static void init_dock_context(DockContext *context)
+static void init_dock_context(UIState *context)
 {
-    context->docks = ImVector<Dock *>();
     context->drag_offset = ImVec2(0, 0);
     context->current = 0;
     context->last_frame = 0;
     context->end_action = EndAction_None;
+    context->first_free_dock = 0;
+    context->first_dock = 0;
 }
 
-static void deinit_dock_context(DockContext *context)
-{
-    context->docks.clear();
-}
-
-static Dock *get_dock(DockContext *context, char *label, b32 opened)
+static Dock *get_dock(UIState *context, char *label, b32 opened)
 {
     ImU32 id = ImHash(label, 0);
     Dock *dock = 0;
 
-    for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+    for (Dock *test_dock = context->first_dock; test_dock; test_dock = test_dock->next)
     {
-        if (context->docks[dock_index]->id == id)
+        if (test_dock->id == id)
         {
-            dock = context->docks[dock_index];
+            dock = test_dock;
+            break;
         }
     }
 
     if (!dock)
     {
-        dock = (Dock *)ImGui::MemAlloc(sizeof(Dock));
+        dock = allocate_dock(context);
         init_dock(dock);
 
         dock->id = id;
@@ -222,12 +249,11 @@ static Dock *get_dock(DockContext *context, char *label, b32 opened)
         copy_string_and_null_terminate(label, dock->label, array_count(dock->label));
 
         set_active(dock);
-        context->docks.push_back(dock);
     }
     return dock;
 }
 
-static void put_in_background(DockContext *context)
+static void put_in_background(UIState *context)
 {
     ImGuiWindow *window = ImGui::GetCurrentWindow();
     ImGuiContext *imgui = GImGui;
@@ -250,7 +276,7 @@ static void put_in_background(DockContext *context)
     }
 }
 
-static void splits(DockContext *context)
+static void splits(UIState *context)
 {
     if (ImGui::GetFrameCount() != context->last_frame)
     {
@@ -263,12 +289,11 @@ static void splits(DockContext *context)
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
         ImGuiIO *imgui_io = &ImGui::GetIO();
 
-        for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+        for (Dock *dock = context->first_dock; dock; dock = dock->next)
         {
-            Dock *dock = context->docks[dock_index];
             if (is_container(dock))
             {
-                ImGui::PushID(dock_index);
+                ImGui::PushID(dock);
                 if (!ImGui::IsMouseDown(0))
                 {
                     dock->status = Status_Docked;
@@ -319,7 +344,7 @@ static void splits(DockContext *context)
     }
 }
 
-static void do_undock(DockContext *context, Dock *dock)
+static void do_undock(UIState *context, Dock *dock)
 {
     if (dock->prev_tab)
     {
@@ -372,17 +397,16 @@ static void do_undock(DockContext *context, Dock *dock)
                 }
             }
 
-            for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+            for (Dock *test_dock = context->first_dock; test_dock; test_dock = test_dock->next)
             {
-                if (context->docks[dock_index] == container)
+                if (test_dock == container)
                 {
-                    context->docks.erase(context->docks.begin() + dock_index);
+                    remove_dock(context, test_dock);
                     break;
                 }
             }
 
-            deinit_dock(container);
-            ImGui::MemFree(container);
+            remove_dock(context, container);
         }
     }
 
@@ -399,12 +423,11 @@ static void do_undock(DockContext *context, Dock *dock)
     dock->prev_tab = dock->next_tab = 0;
 }
 
-static void check_nonextistent(DockContext *context)
+static void check_nonextistent(UIState *context)
 {
     int frame_limit = ImMax(0, ImGui::GetFrameCount() - 2);
-    for (ImVector<Dock *>::iterator iterator = context->docks.begin(); iterator != context->docks.end(); ++iterator)
+    for (Dock *dock = context->first_dock; dock; dock = dock->next)
     {
-        Dock *dock = *iterator;
         if (!is_container(dock) && (dock->status != Status_Float))
         {
             if (dock->last_frame < frame_limit)
@@ -424,21 +447,21 @@ static void check_nonextistent(DockContext *context)
     }
 }
 
-static Dock *get_root_dock(DockContext *context)
+static Dock *get_root_dock(UIState *context)
 {
     Dock *root_dock = 0;
-    for (i32 dock_index = 0; dock_index < context->docks.size(); ++dock_index)
+    for (Dock *dock = context->first_dock; dock; dock = dock->next)
     {
-        if (!context->docks[dock_index]->parent && (context->docks[dock_index]->status == Status_Docked || context->docks[dock_index]->children[0]))
+        if (!dock->parent && (dock->status == Status_Docked || dock->children[0]))
         {
-            root_dock = context->docks[dock_index];
+            root_dock = dock;
             break;
         }
     }
     return root_dock;
 }
 
-static void begin_panel(DockContext *context)
+static void begin_panel(UIState *context)
 {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | 
                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_ShowBorders | ImGuiWindowFlags_NoBringToFrontOnFocus;
@@ -467,18 +490,18 @@ static void begin_panel(DockContext *context)
     check_nonextistent(context);
 }
 
-static void end_panel(DockContext *context)
+static void end_panel(UIState *context)
 {
     ImGui::End();
     ImGui::PopStyleVar();
 }
 
-static Dock *get_dock_at(DockContext *context)
+static Dock *get_dock_at(UIState *context)
 {
     Dock *dock = 0;
-    for (i32 test_dock_index = 0; test_dock_index < context->docks.size(); ++test_dock_index)
+
+    for (Dock *test_dock = context->first_dock; test_dock; test_dock = test_dock->next)
     {
-        Dock *test_dock = context->docks[test_dock_index];
         if (!is_container(test_dock) && (test_dock->status == Status_Docked))
         {
             if (ImGui::IsMouseHoveringRect(test_dock->pos, test_dock->pos + test_dock->size, false))
@@ -491,7 +514,7 @@ static Dock *get_dock_at(DockContext *context)
     return dock;
 }
 
-static ImRect get_docked_rect(DockContext *context, ImRect rect, Slot dock_slot)
+static ImRect get_docked_rect(UIState *context, ImRect rect, Slot dock_slot)
 {
     ImVec2 half_size = rect.GetSize() * 0.5f;
 
@@ -518,7 +541,7 @@ static ImRect get_docked_rect(DockContext *context, ImRect rect, Slot dock_slot)
     return docked_rect;
 }
 
-static ImRect get_slot_rect(DockContext *context, ImRect parent_rect, Slot dock_slot)
+static ImRect get_slot_rect(UIState *context, ImRect parent_rect, Slot dock_slot)
 {
     ImVec2 size = parent_rect.Max - parent_rect.Min;
     ImVec2 center = parent_rect.Min + size * 0.5f;
@@ -546,7 +569,7 @@ static ImRect get_slot_rect(DockContext *context, ImRect parent_rect, Slot dock_
     return slot_rect;
 }
 
-static ImRect get_slot_rect_on_border(DockContext *context, ImRect parent_rect, Slot dock_slot)
+static ImRect get_slot_rect_on_border(UIState *context, ImRect parent_rect, Slot dock_slot)
 {
     ImVec2 size = parent_rect.Max - parent_rect.Min;
     ImVec2 center = parent_rect.Min + size * 0.5f;
@@ -575,7 +598,7 @@ static ImRect get_slot_rect_on_border(DockContext *context, ImRect parent_rect, 
     return slot_rect;
 }
 
-static void set_dock_pos_size(DockContext *context, Dock *dest, Dock *dock, Slot dock_slot, Dock *container)
+static void set_dock_pos_size(UIState *context, Dock *dest, Dock *dock, Slot dock_slot, Dock *container)
 {
     assert(!dock->prev_tab && !dock->next_tab && !dock->children[0] && !dock->children[1]);
 
@@ -622,7 +645,7 @@ static void set_dock_pos_size(DockContext *context, Dock *dest, Dock *dock, Slot
     }
 }
 
-static void do_dock(DockContext *context, Dock *dock, Dock *dest, Slot dock_slot)
+static void do_dock(UIState *context, Dock *dock, Dock *dest, Slot dock_slot)
 {
     assert(!dock->parent);
 
@@ -652,10 +675,9 @@ static void do_dock(DockContext *context, Dock *dock, Dock *dest, Slot dock_slot
     }
     else
     {
-        Dock *container = (Dock *)ImGui::MemAlloc(sizeof(Dock));
+        Dock *container = allocate_dock(context);
         init_dock(container);
 
-        context->docks.push_back(container);
         container->children[0] = get_first_tab(dest);
         container->children[1] = dock;
         container->next_tab = 0;
@@ -687,7 +709,7 @@ static void do_dock(DockContext *context, Dock *dock, Dock *dest, Slot dock_slot
     set_active(dock);
 }
 
-static b32 dock_slots(DockContext *context, Dock *dock, Dock *dest_dock, ImRect rect, b32 on_border)
+static b32 dock_slots(UIState *context, Dock *dock, Dock *dest_dock, ImRect rect, b32 on_border)
 {
     ImU32 color = ImGui::GetColorU32(ImGuiCol_Button);
     ImU32 color_hovered = ImGui::GetColorU32(ImGuiCol_ButtonHovered);
@@ -718,7 +740,7 @@ static b32 dock_slots(DockContext *context, Dock *dock, Dock *dest_dock, ImRect 
     return result;
 }
 
-static void handle_drag(DockContext *context, Dock *dock)
+static void handle_drag(UIState *context, Dock *dock)
 {
     ImGuiWindowFlags flags = ImGuiWindowFlags_Tooltip | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize;
     ImGui::Begin("##Overlay", 0, ImVec2(0, 0), 0.0f, flags);
@@ -761,7 +783,7 @@ static void handle_drag(DockContext *context, Dock *dock)
     ImGui::End();
 }
 
-static char get_location_code(DockContext *context, Dock *dock)
+static char get_location_code(UIState *context, Dock *dock)
 {
     char location = '0';
     if (dock)
@@ -788,7 +810,7 @@ static char get_location_code(DockContext *context, Dock *dock)
     return location;
 }
 
-static void fill_location(DockContext *context, Dock *dock)
+static void fill_location(UIState *context, Dock *dock)
 {
     if (dock->status != Status_Float)
     {
@@ -806,7 +828,7 @@ static void fill_location(DockContext *context, Dock *dock)
     }
 }
 
-static void draw_tabbar_list_button(DockContext *context, Dock *dock)
+static void draw_tabbar_list_button(UIState *context, Dock *dock)
 {
     if (dock->next_tab)
     {
@@ -843,7 +865,7 @@ static void draw_tabbar_list_button(DockContext *context, Dock *dock)
     }
 }
 
-static b32 tabbar(DockContext *context, Dock *dock, b32 close_button)
+static b32 tabbar(UIState *context, Dock *dock, b32 close_button)
 {
     f32 tabbar_height = 2 * ImGui::GetTextLineHeightWithSpacing();
     ImVec2 size = ImVec2(dock->size.x, tabbar_height);
@@ -919,7 +941,6 @@ static b32 tabbar(DockContext *context, Dock *dock, b32 close_button)
             draw_list->PathLineTo(pos + ImVec2(text_size.x, 0));
             draw_list->PathBezierCurveTo(pos + ImVec2(text_size.x + 5, 0), pos + ImVec2(text_size.x + 10, text_size.y), pos + ImVec2(text_size.x + 15, text_size.y), 10);
             draw_list->PathFill(hovered ? color_hovered : (dock_tab->active ? color_active : color));
-            // draw_list->AddText(pos, text_color, dock_tab->label, text_end);
             draw_list->AddText(pos, text_color, dock_tab->label, 0);
 
             dock_tab = dock_tab->next_tab;
@@ -933,7 +954,7 @@ static b32 tabbar(DockContext *context, Dock *dock, b32 close_button)
     return tab_closed;
 }
 
-static void root_dock(DockContext *context, ImVec2 pos, ImVec2 size)
+static void root_dock(UIState *context, ImVec2 pos, ImVec2 size)
 {
     Dock *root = get_root_dock(context);
     if (root)
@@ -943,7 +964,7 @@ static void root_dock(DockContext *context, ImVec2 pos, ImVec2 size)
     }
 }
 
-static void set_dock_active(DockContext *context)
+static void set_dock_active(UIState *context)
 {
     assert(context->current);
     if (context->current)
@@ -952,7 +973,7 @@ static void set_dock_active(DockContext *context)
     }
 }
 
-static Slot get_slot_from_location_code(DockContext *context, char code)
+static Slot get_slot_from_location_code(UIState *context, char code)
 {
     Slot slot = Slot_Right;
     switch (code)
@@ -973,7 +994,7 @@ static Slot get_slot_from_location_code(DockContext *context, char code)
     return slot;
 }
 
-static void try_dock_to_stored_location(DockContext *context, Dock *dock)
+static void try_dock_to_stored_location(UIState *context, Dock *dock)
 {
     if ((dock->status != Status_Docked) && (dock->location[0] != 0))
     {
@@ -1003,7 +1024,7 @@ static void try_dock_to_stored_location(DockContext *context, Dock *dock)
     }
 }
 
-static b32 begin(DockContext *context, char *label, b32 *opened, ImGuiWindowFlags extra_flags)
+static b32 begin_dock(UIState *context, char *label, b32 *opened, ImGuiWindowFlags extra_flags)
 {
     Dock *dock = get_dock(context, label, !opened || *opened);
     if (!dock->opened && (!opened || *opened)) 
@@ -1111,7 +1132,7 @@ static b32 begin(DockContext *context, char *label, b32 *opened, ImGuiWindowFlag
     return result;
 }
 
-static void end(DockContext *context)
+static void end_dock(UIState *context)
 {
     if (context->end_action == EndAction_End)
     {
@@ -1134,37 +1155,47 @@ static void end(DockContext *context)
     }
 }
 
-static DockContext *global_dock_context;
-
-inline void init_dock_context()
+inline i32 get_dock_index(UIState *context, Dock *dock)
 {
-    global_dock_context = (DockContext *)ImGui::MemAlloc(sizeof(DockContext) );
-    init_dock_context(global_dock_context);
+    i32 index = -1;
+    if (dock)
+    {
+        i32 test_index = 0;
+        for (Dock *test_dock = context->first_dock; test_dock; test_dock = test_dock->next, ++test_index)
+        {
+            if (dock == test_dock)
+            {
+                index = test_index;
+                break;
+            }
+        }
+    }
+    return index;
 }
 
-inline void deinit_dock_context()
+inline Dock *get_dock_by_index(UIState *context, i32 index)
 {
-    deinit_dock_context(global_dock_context);
-    ImGui::MemFree(global_dock_context);
-    global_dock_context = 0;
+    Dock *dock = 0;
+    {
+        i32 test_index = 0;
+        for (Dock *test_dock = context->first_dock; test_dock; test_dock = test_dock->next, ++test_index)
+        {
+            if (test_index == index)
+            {
+                dock = test_dock;
+                break;
+            }
+        }
+    }
+    return dock;
 }
 
-inline void root_dock(ImVec2 pos, ImVec2 size)
+inline u32 get_num_docks(UIState *context)
 {
-    root_dock(global_dock_context, pos, size);
-}
-
-inline b32 begin_dock(char *label, b32 *opened, ImGuiWindowFlags extra_flags)
-{
-    return begin(global_dock_context, label, opened, extra_flags);
-}
-
-inline void end_dock()
-{
-    end(global_dock_context);
-}
-
-inline void set_dock_active()
-{
-    set_dock_active(global_dock_context);
+    u32 num_docks = 0;
+    for (Dock *dock = context->first_dock; dock; dock = dock->next)
+    {
+        ++num_docks;
+    }
+    return num_docks;
 }
