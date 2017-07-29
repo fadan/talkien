@@ -121,7 +121,7 @@ struct UISettingsFileHeader
     u32 file_id;
     u32 file_version;
     u32 dock_size;
-    i32 num_docks;
+    u32 num_docks;
 };
 
 struct UISettingsFileData
@@ -172,7 +172,7 @@ static UISettingsFile push_ui_settings(DockContext *context, MemoryStack *memsta
         dest->opened = (i8)src->opened;
         dest->status = (u8)src->status;
 
-        copy_string_and_null_terminate(src->location, dest->location, array_count(dest->location));
+        copy_string(src->location, dest->location, array_count(dest->location));
         copy_string_and_null_terminate(src->label, dest->label, array_count(dest->label));
     }
 
@@ -219,7 +219,7 @@ static void load_ui_settings_from_file(char *filename, DockContext *context)
             }
             context->docks.clear();
 
-            for (i32 dock_index = 0; dock_index < header->num_docks; ++dock_index)
+            for (u32 dock_index = 0; dock_index < header->num_docks; ++dock_index)
             {
                 Dock *dock = (Dock *)ImGui::MemAlloc(sizeof(Dock));
                 init_dock(dock);
@@ -228,10 +228,10 @@ static void load_ui_settings_from_file(char *filename, DockContext *context)
             }
 
             UISettingsFileData *dock_base = (UISettingsFileData *)(header + 1);
-            for (i32 dock_index = 0; dock_index < header->num_docks; ++dock_index)
+            for (u32 dock_index = 0; dock_index < header->num_docks; ++dock_index)
             {
                 UISettingsFileData *src = dock_base + dock_index;
-                Dock *dest = (Dock *)context->docks[dock_index];
+                Dock *dest = context->docks[dock_index];
 
                 dest->parent = get_dock_by_index(context, src->parent_index);
                 dest->prev_tab = get_dock_by_index(context, src->prev_index);
@@ -245,10 +245,11 @@ static void load_ui_settings_from_file(char *filename, DockContext *context)
                 dest->active = src->active;
                 dest->opened = src->opened;
                 dest->status = (Status)src->status;
-                dest->label = ImStrdup(src->label);
-                dest->id = ImHash(dest->label, 0);
 
-                copy_string(src->location, dest->location, array_count(dest->location));                
+                copy_string_and_null_terminate(src->label, dest->label, array_count(dest->location));
+                copy_string(src->location, dest->location, array_count(dest->location));
+
+                dest->id = ImHash(dest->label, 0);
             }
         }
     }

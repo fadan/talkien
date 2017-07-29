@@ -35,7 +35,7 @@ static ProfilerElement *profiler_get_element_from_guid(ProfilerState *state, u32
     ProfilerElement *element = 0;
     for (ProfilerElement *chain = state->element_hash[index]; chain; chain = chain->next_in_hash)
     {
-        if (strings_are_equals(chain->guid, guid))
+        if (strings_are_equal(chain->guid, guid))
         {
             element = chain;
             break;

@@ -2,25 +2,29 @@
 static void init_dock(Dock *dock)
 {
     dock->id = 0;
-    dock->label = 0;
+
+    dock->parent = 0;
     dock->next_tab = 0;
     dock->prev_tab = 0;
-    dock->parent = 0;
+    dock->children[0] = 0;
+    dock->children[1] = 0;
+
     dock->pos = ImVec2(0, 0);
     dock->size = ImVec2(-1, -1);
-    dock->active = true;
     dock->status = Status_Float;
+    dock->active = true;
     dock->opened = false;
     dock->first = true;
-    dock->location[0] = 0;
-    dock->children[0] = dock->children[1] = 0;
     dock->last_frame = 0;
     dock->invalid_frames = 0;
+
+    dock->label[0] = 0;
+    dock->location[0] = 0;
 }
 
 static void deinit_dock(Dock *dock)
 {
-    ImGui::MemFree(dock->label);
+    dock->label[0] = 0;
 }
 
 static b32 is_horizontal(Dock *dock)
@@ -206,7 +210,6 @@ static Dock *get_dock(DockContext *context, char *label, b32 opened)
         init_dock(dock);
 
         dock->id = id;
-        dock->label = ImStrdup(label);
         dock->status = Status_Float;
         dock->pos = ImVec2(0, 0);
         dock->size = ImGui::GetIO().DisplaySize;
@@ -216,7 +219,8 @@ static Dock *get_dock(DockContext *context, char *label, b32 opened)
         dock->invalid_frames = 0;
         dock->location[0] = 0;
 
-        assert(dock->label);
+        copy_string_and_null_terminate(label, dock->label, array_count(dock->label));
+
         set_active(dock);
         context->docks.push_back(dock);
     }
@@ -660,7 +664,7 @@ static void do_dock(DockContext *context, Dock *dock, Dock *dest, Slot dock_slot
         container->size = dest->size;
         container->pos = dest->pos;
         container->status = Status_Docked;
-        container->label = ImStrdup("");
+        container->label[0] = 0;
 
         if (!dest->parent)
         {
@@ -915,7 +919,8 @@ static b32 tabbar(DockContext *context, Dock *dock, b32 close_button)
             draw_list->PathLineTo(pos + ImVec2(text_size.x, 0));
             draw_list->PathBezierCurveTo(pos + ImVec2(text_size.x + 5, 0), pos + ImVec2(text_size.x + 10, text_size.y), pos + ImVec2(text_size.x + 15, text_size.y), 10);
             draw_list->PathFill(hovered ? color_hovered : (dock_tab->active ? color_active : color));
-            draw_list->AddText(pos, text_color, dock_tab->label, text_end);
+            // draw_list->AddText(pos, text_color, dock_tab->label, text_end);
+            draw_list->AddText(pos, text_color, dock_tab->label, 0);
 
             dock_tab = dock_tab->next_tab;
         }
@@ -976,7 +981,7 @@ static void try_dock_to_stored_location(DockContext *context, Dock *dock)
         if (tmp)
         {
             Dock *prev = 0;
-            char *c = dock->location + strlen(dock->location) - 1;
+            char *c = dock->location + string_length(dock->location) - 1;
 
             while (c >= dock->location && tmp)
             {
@@ -1007,10 +1012,9 @@ static b32 begin(DockContext *context, char *label, b32 *opened, ImGuiWindowFlag
     }
 
     dock->last_frame = ImGui::GetFrameCount();
-    if (strcmp(dock->label, label) != 0)
+    if (!strings_are_equal(dock->label, label))
     {
-        ImGui::MemFree(dock->label);
-        dock->label = ImStrdup(label);
+        copy_string_and_null_terminate(label, dock->label, array_count(dock->label));
     }
 
     context->end_action = EndAction_None;
@@ -1093,11 +1097,12 @@ static b32 begin(DockContext *context, char *label, b32 *opened, ImGuiWindowFlag
                 ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | 
                                          ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | extra_flags;
 
-                char tmp[256];
-                strcpy(tmp, label);
-                strcat(tmp, "_docked");
+                char child_name[40];
+                u32 label_length = string_length(label);
+                copy_string(label, child_name, array_count(child_name));
+                copy_string_and_null_terminate("_docked", child_name + label_length, array_count(child_name) - label_length);
 
-                result = ImGui::BeginChild(tmp, size, true, flags);
+                result = ImGui::BeginChild(child_name, size, true, flags);
                 ImGui::PopStyleColor();
                 ImGui::PopStyleColor();
             }

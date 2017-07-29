@@ -28,28 +28,34 @@ enum Status
 struct Dock
 {
     ImU32 id;
-    char *label;
+
+    Dock *parent;
     Dock *next_tab;
     Dock *prev_tab;
-    Dock *parent;
+    Dock *children[2];
+
     ImVec2 pos;
     ImVec2 size;
-    b32 active;
     Status status;
+    b32 active;
     b32 opened;
-
-    Dock *children[2];
-    char location[16];
+    b32 first;
     i32 last_frame;
     i32 invalid_frames;
-    b32 first;
+    
+    char label[32];
+    char location[16];
 };
 
 struct DockContext
 {
-    ImVector<Dock *> docks;
-    ImVec2 drag_offset;
     Dock *current;
+    ImVector<Dock *> docks;
+
+    // u32 num_docks;
+    // Dock docks[32];
+
     i32 last_frame;
+    ImVec2 drag_offset;
     EndAction end_action;
 };
