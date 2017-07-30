@@ -408,6 +408,70 @@ static PLATFORM_INIT_OPENGL(win32_init_opengl)
     #undef GLCORE
 }
 
+static b32 win32_init_sockets()
+{
+    Win32Api_WSAData data;
+    int return_code = win32_api->WSAStartup(514 /* MAKEWORD(2, 2) */, &data);
+    b32 initialized = (return_code == 0);
+    return initialized;
+}
+
+static PLATFORM_SOCKET_CREATE_UDP(win32_socket_create_udp)
+{
+    PlatformSocket win_socket = (PlatformSocket)win32_api->socket(2 /* AF_INET */, 2 /* SOCK_DGRAM */, 17 /* IPPROTO_UDP */);
+    if ((unsigned int)win_socket != (unsigned int)(~0) /* INVALID_SOCKET */)
+    {
+        Win32Api_sockaddr_in address;
+        address.sin_family = 2 /* AF_INET */;
+        address.sin_addr.s_addr = 0x00000000 /* INADDR_ANY */;
+        address.sin_port = win32_api->htons(port);
+
+        if (win32_api->bind(win_socket, (Win32Api_sockaddr *)&address, sizeof(address)) != -1 /* SOCKET_ERROR */)
+        {
+            unsigned int non_blocking = 1;
+            if (win32_api->ioctlsocket(win_socket, 0x8004667e /* FIONBIO */, &non_blocking) != -1 /* SOCKET_ERROR */)
+            {
+                // NOTE(dan): bound & set to non_blocking
+            }
+            else
+            {
+                assert_always();
+            }
+        }
+        else
+        {
+            assert_always();
+        }
+    }
+    return win_socket;
+}
+
+static PLATFORM_SOCKET_SEND(win32_socket_send)
+{
+    Win32Api_sockaddr_in address;
+    address.sin_family = 2 /* AF_INET */;
+    address.sin_addr.s_addr = win32_api->htonl(ip);
+    address.sin_port = win32_api->htons(port);
+
+    i32 sent_bytes = win32_api->sendto(socket, (char *)buffer, buffer_size, 0, (Win32Api_sockaddr *)&address, sizeof(address));
+    return sent_bytes;
+}
+
+static PLATFORM_SOCKET_RECV(win32_socket_recv)
+{
+    Win32Api_sockaddr_in from;
+    i32 from_size = sizeof(from);
+
+    i32 received_bytes = win32_api->recvfrom(socket, (char *)buffer, buffer_size, 0, (Win32Api_sockaddr *)&from, &from_size);
+    *ip = win32_api->ntohl(from.sin_addr.s_addr);
+    *port = win32_api->ntohs(from.sin_port);
+    return received_bytes;
+}
+
+static PLATFORM_SOCKET_CLOSE(win32_socket_close)
+{
+}
+
 static void win32_build_filename(char *pathname, u32 pathname_size,
                                  char *filename, u32 filename_size, 
                                  char *out, u32 max_out_size)
@@ -803,6 +867,10 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
     win32_state->app_memory.platform.deallocate = win32_deallocate;
     win32_state->app_memory.platform.get_memory_stats = win32_get_memory_stats;
     win32_state->app_memory.platform.init_opengl = win32_init_opengl;
+    win32_state->app_memory.platform.socket_create_udp = win32_socket_create_udp;
+    win32_state->app_memory.platform.socket_send = win32_socket_send;
+    win32_state->app_memory.platform.socket_recv = win32_socket_recv;
+    win32_state->app_memory.platform.socket_close = win32_socket_close;
     win32_state->app_memory.profiler = profiler;
 
     win32_state->memory_sentinel.prev = &win32_state->memory_sentinel;
@@ -813,6 +881,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
     win32_init_rawinput(win32_state);
     win32_load_app_dll(win32_state);
     win32_init_audio(win32_state);
+    win32_init_sockets();
 
     win32_state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
     if (win32_state->window.rc)

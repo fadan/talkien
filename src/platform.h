@@ -323,6 +323,18 @@ inline b32 is_released(PlatformInput *input, u32 scan_code)
     return is_released;
 }
 
+typedef i32 PlatformSocket;
+
+#define PLATFORM_SOCKET_CREATE_UDP(name)    PlatformSocket name(u16 port)
+#define PLATFORM_SOCKET_SEND(name)          i32 name(PlatformSocket socket, u32 ip, u16 port, void *buffer, u32 buffer_size)
+#define PLATFORM_SOCKET_RECV(name)          i32 name(PlatformSocket socket, u32 *ip, u16 *port, void *buffer, u32 buffer_size)
+#define PLATFORM_SOCKET_CLOSE(name)         void name(PlatformSocket socket)
+
+typedef PLATFORM_SOCKET_CREATE_UDP(PlatformSocketCreateUDP);
+typedef PLATFORM_SOCKET_SEND(PlatformSocketSend);
+typedef PLATFORM_SOCKET_RECV(PlatformSocketRecv);
+typedef PLATFORM_SOCKET_CLOSE(PlatformSocketClose);
+
 struct PlatformMemoryBlock
 {
     usize size;
@@ -339,10 +351,10 @@ struct PlatformMemoryStats
     usize total_used;
 };
 
-#define PLATFORM_ALLOCATE(name)    PlatformMemoryBlock *name(usize size)
-#define PLATFORM_DEALLOCATE(name)  void name(PlatformMemoryBlock *memblock)
+#define PLATFORM_ALLOCATE(name)         PlatformMemoryBlock *name(usize size)
+#define PLATFORM_DEALLOCATE(name)       void name(PlatformMemoryBlock *memblock)
 #define PLATFORM_GET_MEMORY_STATS(name) PlatformMemoryStats name()
-#define PLATFORM_INIT_OPENGL(name) void name(struct OpenGL *open_gl)
+#define PLATFORM_INIT_OPENGL(name)      void name(struct OpenGL *open_gl)
 
 typedef PLATFORM_ALLOCATE(PlatformAllocate);
 typedef PLATFORM_DEALLOCATE(PlatformDeallocate);
@@ -357,6 +369,11 @@ struct Platform
     PlatformDeallocate *deallocate;
     PlatformGetMemoryStats *get_memory_stats;
     PlatformInitOpenGL *init_opengl;
+
+    PlatformSocketCreateUDP *socket_create_udp;
+    PlatformSocketSend *socket_send;
+    PlatformSocketRecv *socket_recv;
+    PlatformSocketClose *socket_close;
 };
 
 extern Platform platform;

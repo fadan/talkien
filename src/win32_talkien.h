@@ -425,6 +425,49 @@ static Win32Api_GUID Win32Api_uuid_IAudioClient        = { 0x1CB9AD4C, 0xDBFA, 0
 static Win32Api_GUID Win32Api_uuid_IAudioRenderClient  = { 0xF294ACFC, 0x3146, 0x4483, 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2 };
 static Win32Api_GUID Win32Api_uuid_IAudioCaptureClient = { 0xC8ADBD64, 0xE71E, 0x48a0, 0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xD3, 0x17 };
 
+union Win32Api_in_addr
+{
+    struct s_un_b
+    { 
+        unsigned char s_b1, s_b2, s_b3, s_b4; 
+    };
+
+    struct s_un_w
+    { 
+        unsigned short s_w1, s_w2; 
+    };
+
+    unsigned int s_addr;
+};
+
+struct Win32Api_sockaddr 
+{
+    short sa_family;
+    char sa_data[14];
+};
+
+struct Win32Api_sockaddr_in
+{
+    short sin_family;
+    unsigned short sin_port;
+    Win32Api_in_addr sin_addr;
+    char sin_zero[8];
+};
+
+#define WSADESCRIPTION_LEN      256
+#define WSASYS_STATUS_LEN       128
+
+struct Win32Api_WSAData 
+{
+    unsigned short wVersion;
+    unsigned short wHighVersion;
+    char szDescription[WSADESCRIPTION_LEN+1];
+    char szSystemStatus[WSASYS_STATUS_LEN+1];
+    unsigned short iMaxSockets;
+    unsigned short iMaxUdpDg;
+    char *lpVendorInfo;
+};
+
 #define WIN32_API_FUNCTION_LIST \
     WIN32_API(gdi32, ChoosePixelFormat, int __stdcall, (void *dc, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
     WIN32_API(gdi32, DescribePixelFormat, int __stdcall, (void *dc, int pixel_format, unsigned int bytes, Win32Api_PIXELFORMATDESCRIPTOR *pfd)) \
@@ -469,7 +512,18 @@ static Win32Api_GUID Win32Api_uuid_IAudioCaptureClient = { 0xC8ADBD64, 0xE71E, 0
     WIN32_API(user32, RegisterRawInputDevices, int __stdcall, (Win32Api_RAWINPUTDEVICE *devices, unsigned int num_devices, unsigned int cbSize)) \
     WIN32_API(user32, ReleaseDC, int __stdcall, (void *wnd, void *dc)) \
     WIN32_API(user32, ScreenToClient, int __stdcall, (void *wnd, Win32Api_POINT *point)) \
-    WIN32_API(user32, TranslateMessage, int __stdcall, (Win32Api_MSG *msg))
+    WIN32_API(user32, TranslateMessage, int __stdcall, (Win32Api_MSG *msg)) \
+    \
+    WIN32_API(ws2_32, bind, int __stdcall, (unsigned int s, Win32Api_sockaddr *name, int namelen)) \
+    WIN32_API(ws2_32, htonl, unsigned int __stdcall, (unsigned int hostlong)) \
+    WIN32_API(ws2_32, htons, unsigned short __stdcall, (unsigned short hostshort)) \
+    WIN32_API(ws2_32, ioctlsocket, int __stdcall, (unsigned int s, int cmd, unsigned int *argp)) \
+    WIN32_API(ws2_32, ntohl, unsigned int __stdcall, (unsigned int netlong)) \
+    WIN32_API(ws2_32, ntohs, unsigned short __stdcall, (unsigned short netlong)) \
+    WIN32_API(ws2_32, recvfrom, int __stdcall, (unsigned int s, char *buff, int len, int flags, Win32Api_sockaddr *from, int *fromlen)) \
+    WIN32_API(ws2_32, sendto, int __stdcall, (unsigned int s, char *buff, int len, int flags, Win32Api_sockaddr *to, int tolen)) \
+    WIN32_API(ws2_32, socket, unsigned int __stdcall, (int af, int type, int protocol)) \
+    WIN32_API(ws2_32, WSAStartup, int __stdcall, (unsigned int version_requested, Win32Api_WSAData *wsa_data))
 
 #define WIN32_API(dll, name, return_type, params) typedef return_type Win32Api_##name params;
 WIN32_API_FUNCTION_LIST
@@ -489,6 +543,7 @@ static void win32_init_win32_api(Win32Api *win32_api)
     void *opengl32 = win32_load_library("opengl32.dll");
     void *kernel32 = win32_load_library("kernel32.dll");
     void *ole32 = win32_load_library("ole32.dll");
+    void *ws2_32 = win32_load_library("ws2_32.dll");
     
     #define WIN32_API(dll, name, return_type, params) win32_api->name = (Win32Api_##name *)win32_get_proc_address(dll, #name);
     WIN32_API_FUNCTION_LIST
