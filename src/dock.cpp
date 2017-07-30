@@ -307,7 +307,7 @@ static void splits(UIState *context)
 
                 if (is_horizontal(dock))
                 {
-                    ImGui::InvisibleButton("split", ImVec2(3, dock->size.y));
+                    ImGui::InvisibleButton("split", ImVec2(2, dock->size.y));
                     if (dock->status == Status_Dragged) 
                     {
                         dock_size.x = imgui_io->MouseDelta.x;
@@ -317,7 +317,7 @@ static void splits(UIState *context)
                 }
                 else
                 {
-                    ImGui::InvisibleButton("split", ImVec2(dock->size.x, 3));
+                    ImGui::InvisibleButton("split", ImVec2(dock->size.x, 2));
                     if (dock->status == Status_Dragged) 
                     {
                         dock_size.y = imgui_io->MouseDelta.y;
@@ -920,8 +920,10 @@ static b32 tabbar(UIState *context, Dock *dock, b32 close_button)
 
                 ImVec2 center = ((ImGui::GetItemRectMin() + ImGui::GetItemRectMax()) * 0.5f);
                 center.y += 2;
-                draw_list->AddLine(center + ImVec2(-3.5f, -3.5f), center + ImVec2( 3.5f, 3.5f), text_color);
-                draw_list->AddLine(center + ImVec2( 3.5f, -3.5f), center + ImVec2(-3.5f, 3.5f), text_color);
+
+                ImU32 close_color = ImGui::IsItemHovered() ? text_color : text_color_disabled;
+                draw_list->AddLine(center + ImVec2(-3.5f, -3.5f), center + ImVec2( 3.5f, 3.5f), close_color);
+                draw_list->AddLine(center + ImVec2( 3.5f, -3.5f), center + ImVec2(-3.5f, 3.5f), close_color);
             }
             else 
             {

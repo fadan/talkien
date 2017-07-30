@@ -66,6 +66,8 @@ static AudioRecord *allocate_audio_record(AudioState *state)
 {
     AudioRecord *record = 0;
     allocate_freelist(record, state->first_free_record, push_struct(&state->audio_memory, AudioRecord));
+    record->next = state->first_record;
+    state->first_record = record;
     return record;
 }
 
@@ -75,7 +77,7 @@ static void init_recording(AudioState *state, AudioRecord *record, u16 num_chann
     assert(bits_per_sample == 32);
 
     record->num_buffer_samples = 1 * samples_per_sec; // NOTE(dan): 1 sec buffer
-    record->samples = push_array(&state->audio_memory, record->num_buffer_samples, f32, align_no_clear(16));
+    record->samples = push_array(&state->audio_memory, record->num_buffer_samples, f32, align_clear(16));
 
     record->total_samples_written = 0;
     record->total_samples_read = 0;
@@ -83,9 +85,8 @@ static void init_recording(AudioState *state, AudioRecord *record, u16 num_chann
     record->volume[0] = record->volume[1] = 0.5f;
 }
 
-static AudioRecord *init_wav(AudioState *state)
+static void init_wav(AudioState *state, AudioRecord *record)
 {
-    AudioRecord *record = allocate_audio_record(state);
     LoadedFile file = load_file("test2.wav");
     if (file.contents)
     {
@@ -110,13 +111,6 @@ static AudioRecord *init_wav(AudioState *state)
         record->volume[0] = record->volume[1] = 0.5f;
     }
     close_file(file);
-    return record;
-}
-
-static void add_audio_record(AudioState *state, AudioRecord *record)
-{
-    record->next = state->first_record;
-    state->first_record = record;
 }
 
 static AppState *get_or_create_app_state(AppMemory *memory)
@@ -149,13 +143,14 @@ static AudioState *get_or_create_audio_state(AppState *app_state)
         init_memory_stack(&audio_state->audio_memory, 1*MB);
         init_memory_stack(&audio_state->mixer_memory, 1*MB);
 
-        AudioRecord *local_record = audio_state->local_record = allocate_audio_record(audio_state);
-        init_recording(audio_state, local_record, 2, 32, 44100);
-        add_audio_record(audio_state, local_record);
+        audio_state->local_record = allocate_audio_record(audio_state);
+        init_recording(audio_state, audio_state->local_record, 2, 32, 44100);
 
-        // AudioRecord *test_wav = init_wav(audio_state);
-        // test_wav->muted = true;
-        // add_audio_record(audio_state, test_wav);
+        #if 0
+        AudioRecord *test_wav = allocate_audio_record(audio_state);
+        init_wav(audio_state, test_wav);
+        test_wav->muted = true;
+        #endif
 
         audio_state->initialized = true;
     }
@@ -176,63 +171,102 @@ extern "C" __declspec(dllexport) CAPTURE_SOUND_BUFFER(capture_sound_buffer)
 
     AppState *app_state = get_or_create_app_state(memory);
     AudioState *audio_state = get_or_create_audio_state(app_state);
-    AudioRecord *local_record = audio_state->local_record;
+    AudioRecord *record = audio_state->local_record;
 
-    u32 remaining_samples = local_record->num_buffer_samples - (local_record->total_samples_written % local_record->num_buffer_samples);
-    if (num_samples > remaining_samples)
+    u32 write_sample_cursor = record->total_samples_written % record->num_buffer_samples;
+    u32 num_samples_until_buffer_end = record->num_buffer_samples - write_sample_cursor;
+
+    if (num_samples_to_capture > num_samples_until_buffer_end)
     {
         f32 *src1 = buffer;
-        f32 *dest1 = local_record->samples + (local_record->total_samples_written % local_record->num_buffer_samples);
-        u32 src1_sample_count = remaining_samples;
-        copy_audio_samples(dest1, src1, src1_sample_count);
+        f32 *dest1 = record->samples + write_sample_cursor;
+        u32 num_src1_samples = num_samples_until_buffer_end;
+        copy_audio_samples(src1, dest1, num_src1_samples);
 
-        f32 *src2 = buffer + src1_sample_count;
-        f32 *dest2 = local_record->samples;
-        u32 src2_sample_count = num_samples - src1_sample_count;
-        copy_audio_samples(dest2, src2, src2_sample_count);
+        f32 *src2 = buffer + num_src1_samples;
+        f32 *dest2 = record->samples;
+        u32 num_src2_samples = num_samples_to_capture - num_src1_samples;
+        copy_audio_samples(src2, dest2, num_src2_samples);
     }
     else
     {
         f32 *src = buffer;
-        f32 *dest = local_record->samples + (local_record->total_samples_written % local_record->num_buffer_samples);
-        copy_audio_samples(src, dest, num_samples);
+        f32 *dest = record->samples + write_sample_cursor;
+        copy_audio_samples(src, dest, num_samples_to_capture);
     }
-    local_record->total_samples_written += num_samples;
+    record->total_samples_written += num_samples_to_capture;
 }
 
-static void mix_audio_samples(f32 *src, f32 *dest, u32 num_samples, f32 master_volume[2], f32 volume[2])
+#if 0
+// TODO(dan): the AudioCaptureClient does not give us aligned buffer, also the num_samples_to_capture % 4 != 0
+// TODO(dan): possible fix: intermediate audio buffer on the platform side, and then we can also capture/mix on the main thread
+static void mix_audio_samples_sse2()
 {
-    #if 1
-    f32 total_volume = master_volume[0] * volume[0];
-    if (total_volume > 1.0f)
+    // NOTE(dan): clear buffer
     {
-        total_volume = 1.0f;
-    }
-    if (total_volume < 0.0f)
-    {
-        total_volume = 0.0f;
-    }
+        __m128 zero = _mm_setzero_ps();
+        __m128 *dest = (__m128 *)mixer_buffer;
 
-    for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
-    {
-        *dest++ += *src++ * total_volume;
-    }
-    #else
-    __m128 master_volume_x4 = _mm_set_ps(master_volume[0], master_volume[1], master_volume[0], master_volume[1]);
-    __m128 volume_x4 = _mm_set_ps(volume[0], volume[1], volume[0], volume[1]);
-    __m128 total_volume_x4 = _mm_mul_ps(master_volume_x4, volume_x4);
-
-    __m128 *src_x4 = (__m128 *)src;
-    __m128 *dest_x4 = (__m128 *)dest;
-
-    for (u32 sample_index = 0; sample_index < num_samples; sample_index += 4)
-    {
-        __m128 sample = _mm_loadu_ps((f32 *)src_x4++);
-        sample = _mm_mul_ps(sample, total_volume_x4);
-        _mm_storeu_ps((f32 *)dest_x4++, sample);
+        for (u32 sample_index = 0; sample_index < num_samples; sample_index += 4)
+        {
+            _mm_store_ps((f32 *)dest++, zero);
+        }
     }
 
-    #endif
+    // NOTE(dan): mix
+    {
+        __m128 master_volume_x4 = _mm_set_ps(master_volume[0], master_volume[1], master_volume[0], master_volume[1]);
+        __m128 volume_x4 = _mm_set_ps(volume[0], volume[1], volume[0], volume[1]);
+        __m128 total_volume_x4 = _mm_mul_ps(master_volume_x4, volume_x4);
+
+        __m128 *src_x4 = (__m128 *)src;
+        __m128 *dest_x4 = (__m128 *)dest;
+
+        for (u32 sample_index = 0; sample_index < num_samples; sample_index += 4)
+        {
+            __m128 sample = _mm_loadu_ps((f32 *)src_x4++);
+            sample = _mm_mul_ps(sample, total_volume_x4);
+            _mm_storeu_ps((f32 *)dest_x4++, sample);
+        }
+    }
+
+    // NOTE(dan): fill buffer
+    {
+        __m128 one = _mm_set_ps1(1.0f);
+        __m128 neg_one = _mm_set_ps1(-1.0f);
+        __m128 *source = (__m128 *)mixer_buffer;
+        __m128 *dest = (__m128 *)buffer;
+
+        for (u32 sample_index = 0; sample_index < num_samples; sample_index += 4)
+        {
+            __m128 value = _mm_load_ps((f32 *)source++);
+            __m128 clamped_value = _mm_min_ps(_mm_max_ps(value, neg_one), one);
+            _mm_store_ps((f32 *)dest++, clamped_value);
+        }
+    }
+}
+#endif
+
+static void mix_audio_samples(f32 *src_buffer, f32 *dest_buffer, u32 num_samples_to_mix, f32 master_volume[2], f32 volume[2])
+{
+    assert((num_samples_to_mix % 2) == 0); // NOTE(dan): 2 channels for now
+
+    f32 volume_0 = clamp(master_volume[0] * volume[0], 0.0f, 1.0f);
+    f32 volume_1 = clamp(master_volume[1] * volume[1], 0.0f, 1.0f);
+
+    f32 *src = src_buffer;
+    f32 *dest = dest_buffer;
+    for (u32 sample_index = 0; sample_index < num_samples_to_mix; sample_index += 2)
+    {
+        f32 value_0 = *src++;
+        f32 value_1 = *src++;
+
+        value_0 *= volume_0;
+        value_1 *= volume_1;
+
+        *dest++ += value_0;
+        *dest++ += value_1;
+    }
 }
 
 extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
@@ -244,146 +278,67 @@ extern "C" __declspec(dllexport) FILL_SOUND_BUFFER(fill_sound_buffer)
 
     TempMemoryStack mixer_memory = begin_temp_memory(&audio_state->mixer_memory);
     {
-        f32 *mixer_buffer = push_array(&audio_state->mixer_memory, num_samples, f32, align_no_clear(16));
+        f32 *mixer_buffer = push_array(&audio_state->mixer_memory, num_samples_to_mix, f32, align_no_clear(16));
 
         // NOTE(dan): clear buffer
-        #if 1
         {
             f32 *dest = mixer_buffer;
-            for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+            for (u32 sample_index = 0; sample_index < num_samples_to_mix; ++sample_index)
             {
                 *dest++ = 0;
             }
         }
-        #else
-        {
-            __m128 zero = _mm_setzero_ps();
-            __m128 *dest = (__m128 *)mixer_buffer;
-
-            for (u32 sample_index = 0; sample_index < num_samples; sample_index += 4)
-            {
-                _mm_store_ps((f32 *)dest++, zero);
-            }
-        }
-        #endif
 
         // NOTE(dan): mix
         for (AudioRecord *record = audio_state->first_record; record; record = record->next)
         {
-            if (record->muted)
-            {
-                continue;
-            }
-
             assert(record->total_samples_read <= record->total_samples_written);
 
-            u32 samples_available = (u32)(record->total_samples_written - record->total_samples_read);
-            if (samples_available > num_samples)
+            u32 num_record_samples_to_mix = (u32)(record->total_samples_written - record->total_samples_read);
+            if (num_record_samples_to_mix > num_samples_to_mix)
             {
-                samples_available = num_samples;
+                num_record_samples_to_mix = num_samples_to_mix;
             }
 
-            u32 remaining_samples = record->num_buffer_samples - (record->total_samples_read % record->num_buffer_samples);
-            if (samples_available > remaining_samples)
+            if (!record->muted)
             {
-                f32 *src1 = record->samples + (record->total_samples_read % record->num_buffer_samples);
-                f32 *dest1 = mixer_buffer;
-                u32 src1_sample_count = remaining_samples;
-                mix_audio_samples(src1, dest1, src1_sample_count, audio_state->master_volume, record->volume);
+                u32 read_sample_cursor = record->total_samples_read % record->num_buffer_samples;
+                u32 num_samples_until_buffer_end = record->num_buffer_samples - read_sample_cursor;
 
-                f32 *src2 = record->samples;
-                f32 *dest2 = mixer_buffer + src1_sample_count;
-                u32 src2_sample_count = samples_available - src1_sample_count;
-                mix_audio_samples(src2, dest2, src2_sample_count, audio_state->master_volume, record->volume);
+                if (num_record_samples_to_mix > num_samples_until_buffer_end)
+                {
+                    f32 *src1 = record->samples + read_sample_cursor;
+                    f32 *dest1 = mixer_buffer;
+                    u32 num_src1_samples = num_samples_until_buffer_end;
+                    mix_audio_samples(src1, dest1, num_src1_samples, audio_state->master_volume, record->volume);
+
+                    f32 *src2 = record->samples;
+                    f32 *dest2 = mixer_buffer + num_src1_samples;
+                    u32 num_src2_samples = num_record_samples_to_mix - num_src1_samples;
+                    mix_audio_samples(src2, dest2, num_src2_samples, audio_state->master_volume, record->volume);
+                }
+                else
+                {
+                    f32 *src = record->samples + read_sample_cursor;
+                    f32 *dest = mixer_buffer;
+                    mix_audio_samples(src, dest, num_record_samples_to_mix, audio_state->master_volume, record->volume);
+                }
             }
-            else
-            {
-                f32 *src = record->samples + (record->total_samples_read % record->num_buffer_samples);
-                f32 *dest = mixer_buffer;
-                mix_audio_samples(src, dest, samples_available, audio_state->master_volume, record->volume);
-            }
-            record->total_samples_read += samples_available;
+            record->total_samples_read += num_record_samples_to_mix;
         }
 
         // NOTE(dan): fill the buffer
-        #if 1
         {
             f32 *source = mixer_buffer;
             f32 *dest = buffer;
-            for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
+            for (u32 sample_index = 0; sample_index < num_samples_to_mix; ++sample_index)
             {
-                f32 value = *source++;
-                if (value > 1.0f)
-                {
-                    value = 1.0f;
-                }
-                if (value < -1.0f)
-                {
-                    value = -1.0f;
-                }
-
-                *dest++ = value;
+                f32 clamped_value = clamp(*source++, -1.0f, 1.0f);
+                *dest++ = clamped_value;
             }
         }
-        #else
-        {
-            __m128 one = _mm_set_ps1(1.0f);
-            __m128 neg_one = _mm_set_ps1(-1.0f);
-            __m128 *source = (__m128 *)mixer_buffer;
-            __m128 *dest = (__m128 *)buffer;
-
-            for (u32 sample_index = 0; sample_index < num_samples; sample_index += 4)
-            {
-                __m128 value = _mm_load_ps((f32 *)source++);
-                __m128 clamped_value = _mm_min_ps(_mm_max_ps(value, neg_one), one);
-                _mm_store_ps((f32 *)dest++, clamped_value);
-            }
-        }
-        #endif
     }
     end_temp_memory(mixer_memory);
-
-    // for (u32 sample_index = 0; sample_index < num_samples; ++sample_index)
-    // {
-    //     buffer[sample_index] = 0;
-    // }
-
-    // for (AudioRecord *record = audio_state->first_record; record; record = record->next)
-    // {
-    //     if (record->muted)
-    //     {
-    //         continue;
-    //     }
-
-    //     assert(record->total_samples_read <= record->total_samples_written);
-
-    //     u32 samples_available = (u32)(record->total_samples_written - record->total_samples_read);
-    //     if (samples_available > num_samples)
-    //     {
-    //         samples_available = num_samples;
-    //     }
-
-    //     u32 remaining_samples = record->num_buffer_samples - (record->total_samples_read % record->num_buffer_samples);
-    //     if (samples_available > remaining_samples)
-    //     {
-    //         f32 *src1 = record->samples + (record->total_samples_read % record->num_buffer_samples);
-    //         f32 *dest1 = buffer;
-    //         u32 src1_sample_count = remaining_samples;
-    //         mix_audio_samples(src1, dest1, src1_sample_count, audio_state->master_volume, record->volume);
-
-    //         f32 *src2 = record->samples;
-    //         f32 *dest2 = buffer + src1_sample_count;
-    //         u32 src2_sample_count = samples_available - src1_sample_count;
-    //         mix_audio_samples(src2, dest2, src2_sample_count, audio_state->master_volume, record->volume);
-    //     }
-    //     else
-    //     {
-    //         f32 *src = record->samples + (record->total_samples_read % record->num_buffer_samples);
-    //         f32 *dest = buffer;
-    //         mix_audio_samples(src, dest, samples_available, audio_state->master_volume, record->volume);
-    //     }
-    //     record->total_samples_read += samples_available;
-    // }
 }
 
 static void draw_vertical_slider(ImGuiID id, ImRect bb, f32 *value)
@@ -501,6 +456,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 
     gl.Viewport(0, 0, window_width, window_height);
 
+    PROFILER_BEGIN("UI");
     begin_ui(ui_state, input, window_width, window_height);
     {
         if (ImGui::BeginMainMenuBar())
@@ -536,7 +492,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
                 {
                     ui_state->show_clocks = !ui_state->show_clocks;
                 }
-                
+
                 ImGui::EndMenu();
             }
 
@@ -582,12 +538,31 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         }
         end_dock(ui_state);
 
+        if (begin_dock(ui_state, "Records", 0, 0))
+        {
+            u32 record_index = 0;
+            for (AudioRecord *record = audio_state->first_record; record; record = record->next, ++record_index)
+            {
+                ImVec2 graph_size = ImVec2(0, 100);
+                char label[40];
+                ImFormatString(label, array_count(label), "Record #%u", record_index);
+
+                ImGui::PlotLines(label, record->samples, record->num_buffer_samples, sizeof(f32), "L", -1.0f, 1.0f, graph_size, 4);
+
+                ImFormatString(label, array_count(label), "Record #%u", record_index);
+
+                ImGui::PlotLines(label, record->samples, record->num_buffer_samples, sizeof(f32)*2, "R", -1.0f, 1.0f, graph_size, 4);
+            }
+        }
+        end_dock(ui_state);
+
         // ShowExampleAppConsole(0);
         // ImGui::ShowTestWindow(0);
 
         profiler_report(ui_state, memory);
     }
     end_ui(ui_state);
+    PROFILER_END();
 
     save_ui_state(ui_state, &app_state->app_memory);
 }

@@ -111,20 +111,26 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
 #define F32_MAX 3.402823E+38F
 
 #if COMPILER == COMPILER_MSVC
-    // union __declspec(intrin_type) __declspec(align(16)) __m128 
-    // {
-    //     f32 m128_f32[4];
-    //     u64 m128_u64[2];
-    //     i8  m128_i8[16];
-    //     i16 m128_i16[8];
-    //     i32 m128_i32[4];
-    //     i64 m128_i64[2];
-    //     u8  m128_u8[16];
-    //     u16 m128_u16[8];
-    //     u32 m128_u32[4];
-    // };
+    union __declspec(intrin_type) __declspec(align(16)) __m128 
+    {
+        f32 m128_f32[4];
+        u64 m128_u64[2];
+        i8  m128_i8[16];
+        i16 m128_i16[8];
+        i32 m128_i32[4];
+        i64 m128_i64[2];
+        u8  m128_u8[16];
+        u16 m128_u16[8];
+        u32 m128_u32[4];
+    };
 
     extern "C" void _mm_pause();
+
+    extern "C" __m128 _mm_set_ss(float a);
+    extern "C" void _mm_store_ss(float *mem_addr, __m128 a);
+    extern "C" __m128 _mm_min_ss(__m128 a, __m128 b);
+    extern "C" __m128 _mm_max_ss(__m128 a, __m128 b);
+
     // extern "C" __m128 _mm_setzero_ps();
     // extern "C" __m128 _mm_set_ps1(float a);
     // extern "C" __m128 _mm_set_ps(float a, float b, float c, float d);
@@ -184,6 +190,16 @@ typedef char test_size_usize[sizeof(usize) == sizeof(char *) ? 1 : -1];
         u8 *thread_local_storage = (u8 *)__readgsqword(0x30);
         u32 thread_id = *(u32 *)(thread_local_storage + 0x48);
         return thread_id;
+    }
+
+    inline f32 clamp(f32 value, f32 min_value, f32 max_value)
+    {
+        __m128 val_ss = _mm_set_ss(value);
+        __m128 min_ss = _mm_set_ss(min_value);
+        __m128 max_ss = _mm_set_ss(max_value);
+
+        _mm_store_ss(&value, _mm_min_ss(_mm_max_ss(val_ss, min_ss), max_ss));
+        return value;
     }
 #endif
 
@@ -584,17 +600,17 @@ static UPDATE_AND_RENDER(update_and_render_stub)
 {
 }
 
-#define FILL_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples)
+#define FILL_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples_to_mix)
 typedef FILL_SOUND_BUFFER(FillSoundBuffer);
 static FILL_SOUND_BUFFER(fill_sound_buffer_stub)
 {
-    for (u32 float_index = 0; float_index < num_samples; ++float_index)
+    for (u32 float_index = 0; float_index < num_samples_to_mix; ++float_index)
     {
         buffer[float_index] = 0;
     }
 }
 
-#define CAPTURE_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples)
+#define CAPTURE_SOUND_BUFFER(name) void name(AppMemory *memory, f32 *buffer, u32 num_samples_to_capture)
 typedef CAPTURE_SOUND_BUFFER(CaptureSoundBuffer);
 static CAPTURE_SOUND_BUFFER(capture_sound_buffer_stub)
 {
