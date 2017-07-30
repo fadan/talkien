@@ -108,6 +108,8 @@ struct Dock
 
 struct UIState
 {
+    // NOTE(dan): opengl
+
     GLint attribs[attrib_count];
     GLint uniforms[uniform_count];
 
@@ -116,9 +118,6 @@ struct UIState
     GLuint vao;
     GLuint elements;
     GLuint font_texture;
-
-    ImGuiIO *imgui_io;
-    MemoryStack ui_memory;
 
     // NOTE(dan): docks
 
@@ -130,4 +129,15 @@ struct UIState
     Dock *current;
     Dock *first_dock;
     Dock *first_free_dock;
+
+    // NOTE(dan): 
+
+    ImGuiIO *imgui_io;
+    MemoryStack ui_memory;
+
+    b32 show_info_dock;
+    b32 show_volume_mixer;
+    b32 show_frame_history;
+    b32 show_profiler;
+    b32 show_clocks;
 };

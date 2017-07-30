@@ -1,7 +1,7 @@
 
 static void profiler_draw_frame_history(UIState *ui_state, ProfilerState *state, f32 graph_size_x, f32 graph_size_y, f32 scale_min, f32 scale_max)
 {
-    begin_dock(ui_state, "Frame History", 0, 0);
+    if (begin_dock(ui_state, "Frame History", &ui_state->show_frame_history, 0))
     {
         ImGuiWindow *window = ImGui::GetCurrentWindow();
         ImGuiContext *imgui = GImGui;
@@ -100,6 +100,7 @@ static void profiler_draw_frame_history(UIState *ui_state, ProfilerState *state,
         ImGui::SameLine(ImGui::GetWindowWidth() - 115);
         ImGui::PushItemWidth(100.0f);
         ImGui::DragInt("", &state->pause_condition_ms, 1, 0, 1000, "%.0f ms");
+
     }
     end_dock(ui_state);
 }
@@ -199,7 +200,7 @@ static void profiler_draw_bars(ProfilerState *state, ImGuiWindow *window, ImRect
 
 static void profiler_draw_timelines(UIState *ui_state, ProfilerState *state, f32 graph_size_x, f32 graph_size_y)
 {
-    begin_dock(ui_state, "Profiler", 0, 0);
+    if (begin_dock(ui_state, "Profiler", &ui_state->show_profiler, 0))
     {
         graph_size_x = ImGui::GetWindowWidth() - 30;
         graph_size_y = ImGui::GetWindowHeight() - 80;
@@ -251,6 +252,7 @@ static void profiler_draw_timelines(UIState *ui_state, ProfilerState *state, f32
 
             profiler_draw_bars(state, window, entry_rect, node, lane_height, lane_height, 2);
         }
+
     }
     end_dock(ui_state);
 }
@@ -308,7 +310,7 @@ inline void profiler_end_stats(ProfilerStats *stats)
 
 static void profiler_draw_clocks(UIState *ui_state, ProfilerState *state, f32 graph_size_x, f32 graph_size_y)
 {
-    begin_dock(ui_state, "Clocks", 0, 0);
+    if (begin_dock(ui_state, "Clocks", &ui_state->show_clocks, 0))
     {
         graph_size_x = ImGui::GetWindowWidth() - 30;
         graph_size_y = ImGui::GetWindowHeight() - 80;

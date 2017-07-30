@@ -527,7 +527,7 @@ inline void *bootstrap_push_size(usize size, usize offset, MemoryStackParams par
 
 inline void init_memory_stack(MemoryStack *memstack, usize size, MemoryStackParams params = default_params())
 {
-    assert(!memstack->memblock); // NOTE(dan): already initialized
+    // assert(!memstack->memblock); // NOTE(dan): already initialized
 
     if (!memstack->memblock)
     {

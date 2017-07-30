@@ -513,13 +513,40 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
                 }
                 ImGui::EndMenu();
             }
+
+            if (ImGui::BeginMenu("View"))
+            {
+                if (ImGui::MenuItem(ui_state->show_info_dock ? "Hide Info" : "Show Info"))
+                {
+                    ui_state->show_info_dock = !ui_state->show_info_dock;
+                }
+                if (ImGui::MenuItem(ui_state->show_volume_mixer ? "Hide Volume Mixer" : "Show Volume Mixer"))
+                {
+                    ui_state->show_volume_mixer = !ui_state->show_volume_mixer;
+                }
+                if (ImGui::MenuItem(ui_state->show_frame_history ? "Hide Frame History" : "Show Frame History"))
+                {
+                    ui_state->show_frame_history = !ui_state->show_frame_history;
+                }
+                if (ImGui::MenuItem(ui_state->show_profiler ? "Hide Profiler" : "Show Profiler"))
+                {
+                    ui_state->show_profiler = !ui_state->show_profiler;
+                }
+                if (ImGui::MenuItem(ui_state->show_clocks ? "Hide Clocks" : "Show Clocks"))
+                {
+                    ui_state->show_clocks = !ui_state->show_clocks;
+                }
+                
+                ImGui::EndMenu();
+            }
+
             ImGui::EndMainMenuBar();
         }
 
         f32 menubar_height = 20.0f;
         root_dock(ui_state, ImVec2(0, menubar_height), ImVec2((f32)window_width, (f32)window_height - menubar_height));
 
-        begin_dock(ui_state, "Info", 0, 0);
+        if (begin_dock(ui_state, "Info", &ui_state->show_info_dock, 0))
         {
             PlatformMemoryStats memory_stats = platform.get_memory_stats();
 
@@ -537,12 +564,14 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
             ImGui::Text("Windows: %d ", ui_state->imgui_io->MetricsActiveWindows);
             ImGui::Text("Memory blocks: %d Total: %d %s Used: %d %s ", memory_stats.num_memblocks, total_size, total_size_unit, total_used, total_used_unit);
             ImGui::Text("Frame time: %.2f ms", 1000.0f / ui_state->imgui_io->Framerate);
+
         }
         end_dock(ui_state);
 
-        begin_dock(ui_state, "Volume Mixer", 0, 0);
+        if (begin_dock(ui_state, "Volume Mixer", &ui_state->show_volume_mixer, 0))
         {
             draw_volume_mixer("master", &audio_state->master_volume[0], &audio_state->master_volume[1]);
+
             ImGui::SameLine();
 
             for (AudioRecord *record = audio_state->first_record; record; record = record->next)

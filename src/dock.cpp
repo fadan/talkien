@@ -38,7 +38,7 @@ inline void deallocate_dock(UIState *context, Dock *dock)
 
 static void remove_dock(UIState *context, Dock *dock)
 {
-    for (Dock *prev = 0, *current = context->first_dock; current; current = current->next)
+    for (Dock *prev = 0, *current = context->first_dock; current; prev = current, current = current->next)
     {
         if (current == dock)
         {
@@ -919,6 +919,7 @@ static b32 tabbar(UIState *context, Dock *dock, b32 close_button)
                 tab_closed = ImGui::InvisibleButton("close", ImVec2(16, 16));
 
                 ImVec2 center = ((ImGui::GetItemRectMin() + ImGui::GetItemRectMax()) * 0.5f);
+                center.y += 2;
                 draw_list->AddLine(center + ImVec2(-3.5f, -3.5f), center + ImVec2( 3.5f, 3.5f), text_color);
                 draw_list->AddLine(center + ImVec2( 3.5f, -3.5f), center + ImVec2(-3.5f, 3.5f), text_color);
             }
@@ -930,17 +931,27 @@ static b32 tabbar(UIState *context, Dock *dock, b32 close_button)
                     ImGui::InvisibleButton("close", ImVec2(16, 16));
 
                     ImVec2 center = ((ImGui::GetItemRectMin() + ImGui::GetItemRectMax()) * 0.5f);
+                    center.y += 2;
                     draw_list->AddLine(center + ImVec2(-3.5f, -3.5f), center + ImVec2( 3.5f, 3.5f), text_color_disabled);
                     draw_list->AddLine(center + ImVec2( 3.5f, -3.5f), center + ImVec2(-3.5f, 3.5f), text_color_disabled);
                 }
             }
 
             draw_list->PathClear();
+            #if 1
             draw_list->PathLineTo(pos + ImVec2(-15, text_size.y));
             draw_list->PathBezierCurveTo(pos + ImVec2(-10, text_size.y), pos + ImVec2(-5, 0), pos + ImVec2(0, 0), 10);
             draw_list->PathLineTo(pos + ImVec2(text_size.x, 0));
             draw_list->PathBezierCurveTo(pos + ImVec2(text_size.x + 5, 0), pos + ImVec2(text_size.x + 10, text_size.y), pos + ImVec2(text_size.x + 15, text_size.y), 10);
+            #else
+            draw_list->PathLineTo(pos + ImVec2(-15, text_size.y)); // bottomleft
+            draw_list->PathLineTo(pos + ImVec2(-5, 0)); // topleft
+            draw_list->PathLineTo(pos + ImVec2(text_size.x, 0)); // topright
+            draw_list->PathLineTo(pos + ImVec2(text_size.x + 10, text_size.y));
+            #endif
             draw_list->PathFill(hovered ? color_hovered : (dock_tab->active ? color_active : color));
+
+            pos.y += 4;
             draw_list->AddText(pos, text_color, dock_tab->label, 0);
 
             dock_tab = dock_tab->next_tab;
