@@ -40,6 +40,9 @@ struct AppState
     MemoryStack app_memory;
     AudioState audio_state;
     UIState ui_state;
+    NetworkState network_state;
+
+    struct Console *console;
 };
 
 // NOTE(dan): test audio

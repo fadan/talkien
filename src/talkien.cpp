@@ -1,10 +1,13 @@
 #include "platform.h"
 #include "opengl.h"
 #include "ui.h"
+#include "network.h"
 #include "talkien.h"
 #include "profiler_process.h"
 
+#include "network.cpp"
 #include "ui.cpp"
+#include "console.cpp"
 #include "profiler_draw.cpp"
 #include "profiler_process.cpp"
 
@@ -122,6 +125,9 @@ static AppState *get_or_create_app_state(AppMemory *memory)
         profiler = memory->profiler;
 
         app_state = memory->app_state = bootstrap_push_struct(AppState, app_memory);
+
+        app_state->console = push_struct(&app_state->app_memory, Console);
+        init_console(app_state->console);
     }
 
     if (memory->app_dll_reloaded)
@@ -155,6 +161,22 @@ static AudioState *get_or_create_audio_state(AppState *app_state)
         audio_state->initialized = true;
     }
     return audio_state;
+}
+
+#define SERVER_IP       IPV4_TO_U32(127, 0, 0, 1)
+#define SERVER_PORT     30000
+#define CLIENT_PORT     30001
+
+static NetworkState *get_or_create_network_state(AppState *app_state)
+{
+    NetworkState *network_state = &app_state->network_state;
+    if (!network_state->initialized)
+    {
+        init_memory_stack(&network_state->temp_packet_memory, 1*KB);
+
+        network_state->initialized = true;
+    }
+    return network_state;
 }
 
 static void copy_audio_samples(f32 *src, f32 *dest, u32 num_samples)
@@ -444,6 +466,7 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
     }
 
     AudioState *audio_state = get_or_create_audio_state(app_state);
+    NetworkState *network_state = get_or_create_network_state(app_state);
 
     ImVec4 clear_color = ImColor(85, 118, 152);
     gl.Enable(GL_SCISSOR_TEST);
@@ -556,13 +579,56 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
         }
         end_dock(ui_state);
 
-        // ShowExampleAppConsole(0);
-        // ImGui::ShowTestWindow(0);
+        if (begin_dock(ui_state, "Network", 0, 0))
+        {
+            ImGui::Columns(2, "connect");
+            ImGui::Separator();
+
+            ImGui::Text("Host");
+            static int host_port = 30000;
+            ImGui::PushItemWidth(50);
+            ImGui::DragInt("Listen Port", &host_port, 1.0f, 1000, 100000, 0);
+            ImGui::Button("Host");
+            ImGui::NextColumn();
+
+            ImGui::Text("Join");
+            static int server_ip[4] = {127, 0, 0, 1};
+            static int client_port = 30001;
+            static int server_port = 30000;
+
+            ImGui::PushItemWidth(50);
+            ImGui::DragInt("##a", &server_ip[0], 1.0f, 0, 255, 0);
+            ImGui::SameLine(0, 2);
+            ImGui::Text(".");
+            ImGui::SameLine(0, 2);
+            ImGui::DragInt("##b", &server_ip[1], 1.0f, 0, 255, 0);
+            ImGui::SameLine(0, 2);
+            ImGui::Text(".");
+            ImGui::SameLine(0, 2);
+            ImGui::DragInt("##c", &server_ip[2], 1.0f, 0, 255, 0);
+            ImGui::SameLine(0, 2);
+            ImGui::Text(".");
+            ImGui::SameLine(0, 2);
+            ImGui::DragInt("##d", &server_ip[3], 1.0f, 0, 255, 0);
+            ImGui::SameLine(0, 2);
+            ImGui::Text(":");
+            ImGui::SameLine(0, 2);
+            ImGui::DragInt("Server IP:Port##port", &server_port, 1.0f, 1000, 100000, 0);
+            ImGui::DragInt("Client Port", &client_port, 1.0f, 1000, 100000, 0);
+            ImGui::Button("Connect");
+            ImGui::NextColumn();
+
+            ImGui::Columns(1);
+            ImGui::Separator();
+        }
+        end_dock(ui_state);
+
+        draw_console(ui_state, app_state->console);
 
         profiler_report(ui_state, memory);
+
+        save_ui_state(ui_state, &app_state->app_memory);
     }
     end_ui(ui_state);
     PROFILER_END();
-
-    save_ui_state(ui_state, &app_state->app_memory);
 }

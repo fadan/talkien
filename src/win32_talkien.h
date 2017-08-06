@@ -515,6 +515,7 @@ struct Win32Api_WSAData
     WIN32_API(user32, TranslateMessage, int __stdcall, (Win32Api_MSG *msg)) \
     \
     WIN32_API(ws2_32, bind, int __stdcall, (unsigned int s, Win32Api_sockaddr *name, int namelen)) \
+    WIN32_API(ws2_32, closesocket, int __stdcall, (unsigned int s)) \
     WIN32_API(ws2_32, htonl, unsigned int __stdcall, (unsigned int hostlong)) \
     WIN32_API(ws2_32, htons, unsigned short __stdcall, (unsigned short hostshort)) \
     WIN32_API(ws2_32, ioctlsocket, int __stdcall, (unsigned int s, int cmd, unsigned int *argp)) \

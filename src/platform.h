@@ -323,11 +323,44 @@ inline b32 is_released(PlatformInput *input, u32 scan_code)
     return is_released;
 }
 
-typedef i32 PlatformSocket;
+#if PLATFORM == PLATFORM_WINDOWS
+    typedef i32 PlatformSocket;
+#else
+    typedef u32 PlatformSocket;
+#endif
+
+struct Address
+{
+    u32 ip;
+    u16 port;
+};
+
+#if PLATFORM == PLATFORM_WINDOWS || PLATFORM == PLATFORM_UNIX || PLATFORM == PLATFORM_OSX
+    // NOTE(dan): little endian machines
+    inline u32 host_to_network_u32(u32 value)
+    {
+        return value;
+    }
+
+    inline u16 host_to_network_u16(u16 value)
+    {
+        return value;
+    }
+
+    inline u32 network_to_host_u32(u32 value)
+    {
+        return value;
+    }
+
+    inline u32 network_to_host_u16(u16 value)
+    {
+        return value;
+    }
+#endif
 
 #define PLATFORM_SOCKET_CREATE_UDP(name)    PlatformSocket name(u16 port)
-#define PLATFORM_SOCKET_SEND(name)          i32 name(PlatformSocket socket, u32 ip, u16 port, void *buffer, u32 buffer_size)
-#define PLATFORM_SOCKET_RECV(name)          i32 name(PlatformSocket socket, u32 *ip, u16 *port, void *buffer, u32 buffer_size)
+#define PLATFORM_SOCKET_SEND(name)          i32 name(PlatformSocket socket, Address *to_address, void *buffer, u32 buffer_size)
+#define PLATFORM_SOCKET_RECV(name)          i32 name(PlatformSocket socket, Address *from_address, void *buffer, u32 buffer_size)
 #define PLATFORM_SOCKET_CLOSE(name)         void name(PlatformSocket socket)
 
 typedef PLATFORM_SOCKET_CREATE_UDP(PlatformSocketCreateUDP);
@@ -604,6 +637,14 @@ inline void end_temp_memory(TempMemoryStack tempmem)
 
     assert(memstack->temp_stacks > 0);
     --memstack->temp_stacks;
+}
+
+inline void clear_memory_stack(MemoryStack *memstack)
+{
+    if (memstack->memblock)
+    {
+        memstack->memblock->used = 0;
+    }
 }
 
 inline void check_memory_stack(MemoryStack *memstack)

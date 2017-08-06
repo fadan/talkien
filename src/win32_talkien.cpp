@@ -450,8 +450,8 @@ static PLATFORM_SOCKET_SEND(win32_socket_send)
 {
     Win32Api_sockaddr_in address;
     address.sin_family = 2 /* AF_INET */;
-    address.sin_addr.s_addr = win32_api->htonl(ip);
-    address.sin_port = win32_api->htons(port);
+    address.sin_addr.s_addr = win32_api->htonl(to_address->ip);
+    address.sin_port = win32_api->htons(to_address->port);
 
     i32 sent_bytes = win32_api->sendto(socket, (char *)buffer, buffer_size, 0, (Win32Api_sockaddr *)&address, sizeof(address));
     return sent_bytes;
@@ -463,13 +463,15 @@ static PLATFORM_SOCKET_RECV(win32_socket_recv)
     i32 from_size = sizeof(from);
 
     i32 received_bytes = win32_api->recvfrom(socket, (char *)buffer, buffer_size, 0, (Win32Api_sockaddr *)&from, &from_size);
-    *ip = win32_api->ntohl(from.sin_addr.s_addr);
-    *port = win32_api->ntohs(from.sin_port);
+    from_address->ip = win32_api->ntohl(from.sin_addr.s_addr);
+    from_address->port = win32_api->ntohs(from.sin_port);
     return received_bytes;
 }
 
 static PLATFORM_SOCKET_CLOSE(win32_socket_close)
 {
+    assert(socket);
+    win32_api->closesocket(socket);
 }
 
 static void win32_build_filename(char *pathname, u32 pathname_size,
@@ -602,7 +604,7 @@ static void win32_init_rawinput(Win32State *state)
     assert(registered);
 }
 
-//
+// TODO(dan): debug and use intermediate sound buffer:
 
 // #define MAX_AUDIO_BUFFER_CHANNEL (500 * 44100 / 1000)           // NOTE(dan): 500 ms buffer
 // #define MAX_AUDIO_BUFFER         (MAX_AUDIO_BUFFER_CHANNEL * 2) // NOTE(dan): 2 channels
@@ -748,50 +750,6 @@ static int win32_sound_thread_proc(void *param)
     }
     return 0;
 }
-// static int win32_sound_thread_proc(void *param)
-// {
-//     void *buffer_ready_event = win32_api->CreateEventA(0, 0, 0, 0);
-//     if (win32_state->audio_client->vtbl->SetEventHandle(win32_state->audio_client, buffer_ready_event) >= 0)
-//     {
-//         unsigned int buffer_frame_count;
-//         if (win32_state->audio_client->vtbl->GetBufferSize(win32_state->audio_client, &buffer_frame_count) >= 0)
-//         {
-//             if (win32_state->audio_client->vtbl->Start(win32_state->audio_client) >= 0)
-//             {
-//                 for (;;)
-//                 {
-//                     if (win32_api->WaitForSingleObject(buffer_ready_event, 0xFFFFFFFF /* INFINITE */) != 0 /* WAIT_OBJECT_0 */)
-//                     {
-//                         break;
-//                     }
-
-//                     unsigned int padding_frame_count;
-//                     if (win32_state->audio_client->vtbl->GetCurrentPadding(win32_state->audio_client, &padding_frame_count) < 0)
-//                     {
-//                         break;
-//                     }
-
-//                     f32 *buffer;
-//                     unsigned int fill_frame_count = buffer_frame_count - padding_frame_count;
-//                     if (win32_state->audio_render->vtbl->GetBuffer(win32_state->audio_render, fill_frame_count, (unsigned char **)&buffer) < 0)
-//                     {
-//                         break;
-//                     }
-
-//                     u32 num_samples = fill_frame_count * 2;
-//                     win32_state->fill_sound_buffer(&win32_state->app_memory, buffer, num_samples);
-
-//                     if (win32_state->audio_render->vtbl->ReleaseBuffer(win32_state->audio_render, fill_frame_count, 0) < 0)
-//                     {
-//                         break;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-//     win32_state->audio_client->vtbl->Stop(win32_state->audio_client);
-//     return 0;
-// }
 
 static void win32_init_audio(Win32State *state)
 {
@@ -881,7 +839,9 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
     win32_init_rawinput(win32_state);
     win32_load_app_dll(win32_state);
     win32_init_audio(win32_state);
-    win32_init_sockets();
+
+    b32 sockets_initialized = win32_init_sockets();
+    assert(sockets_initialized);
 
     win32_state->window = win32_open_window_init_with_opengl("Talkien", 1280, 720, win32_window_proc);
     if (win32_state->window.rc)
@@ -894,17 +854,17 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
         win32_state->running = true;
         while (win32_state->running)
         {
-            PROFILER_BLOCK("Win32 Main Loop");
+            PROFILER_BLOCK("Main Loop");
 
-            PROFILER_BEGIN("Win32 Gather Input");
+            PROFILER_BEGIN("Gather Input");
             win32_update_input(&win32_state->input, dt);
             PROFILER_END();
 
-            PROFILER_BEGIN("Win32 Update And Render");            
+            PROFILER_BEGIN("Update And Render");            
             win32_state->update_and_render(&win32_state->app_memory, &win32_state->input, win32_state->window.width, win32_state->window.height);
             PROFILER_END();
 
-            PROFILER_BEGIN("Win32 Refresh App DLL");
+            PROFILER_BEGIN("Refresh App DLL");
             {
                 if (win32_state->input.quit_requested)
                 {
@@ -915,7 +875,7 @@ int __stdcall WinMain(HINSTANCE instance, HINSTANCE prev_instance, char *cmd_lin
             }
             PROFILER_END();
 
-            PROFILER_BEGIN("Win32 Swap Buffers");
+            PROFILER_BEGIN("Swap");
             win32_api->SwapBuffers(win32_state->window.dc);
             f32 t1 = win32_get_time();
             dt = t1 - t0;

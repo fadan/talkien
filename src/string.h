@@ -62,3 +62,55 @@ inline u32 string_length(char *string)
     }
     return length;
 }
+
+inline char char_uppercase(char c)
+{
+    if (c >= 'a' && c <= 'z')
+    {
+        c = c - 'a' + 'A';
+    }
+    return c;
+}
+
+inline i32 string_i_compare(char *a, char *b)
+{
+    i32 diff = 0;
+    while (*a && *b)
+    {
+        diff = char_uppercase(*b) - char_uppercase(*a);
+        if (diff)
+        {
+            break;
+        }
+
+        ++a;
+        ++b;
+    }
+    return diff;
+}
+
+inline i32 string_i_compare(char *a, char *b, i32 a_length)
+{
+    i32 diff = 0;
+    while (a_length > 0 && *a && *b)
+    {
+        diff = char_uppercase(*b) - char_uppercase(*a);
+        if (diff)
+        {
+            break;
+        }
+
+        ++a;
+        ++b;
+        --a_length;
+    }
+    return diff;
+}
+
+// inline char *string_dup(char *string)
+// {
+//     u32 length = string_length(string) + 1;
+//     void *buffer = malloc(length);
+//     char *dup = (char *)memcpy(buffer, string, length);
+//     return dup;
+// }
