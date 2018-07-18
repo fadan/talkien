@@ -172,7 +172,7 @@ static NetworkState *get_or_create_network_state(AppState *app_state)
     NetworkState *network_state = &app_state->network_state;
     if (!network_state->initialized)
     {
-        init_memory_stack(&network_state->temp_packet_memory, 1*KB);
+        init_net(network_state);
 
         network_state->initialized = true;
     }
@@ -464,9 +464,11 @@ extern "C" __declspec(dllexport) UPDATE_AND_RENDER(update_and_render)
 
         app_state->initialized = true;
     }
-
+    
     AudioState *audio_state = get_or_create_audio_state(app_state);
     NetworkState *network_state = get_or_create_network_state(app_state);
+
+    update_net(network_state);
 
     ImVec4 clear_color = ImColor(85, 118, 152);
     gl.Enable(GL_SCISSOR_TEST);
